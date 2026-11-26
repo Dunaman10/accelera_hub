@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import type { Database } from "@/types/database";
 import { getSupabasePublicConfig } from "./client";
 
@@ -12,6 +13,7 @@ type CookieStore = Awaited<ReturnType<typeof cookies>>;
  * Mendukung pemanggilan `await createClient()` maupun `createClient(cookieStore)`.
  */
 export async function createClient(passedCookieStore?: CookieStore) {
+  await connection();
   const cookieStore = passedCookieStore ?? (await cookies());
   const { supabaseUrl, supabaseKey } = getSupabasePublicConfig();
 

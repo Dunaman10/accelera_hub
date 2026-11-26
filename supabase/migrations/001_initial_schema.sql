@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS public.billing_submissions (
   work_type TEXT NOT NULL,
   contract_po_no TEXT,
   amount NUMERIC(18,2) NOT NULL DEFAULT 0 CHECK (amount >= 0),
-  current_stage public.submission_stage NOT NULL DEFAULT 'SUBMITTED',
+  current_stage public.submission_stage NOT NULL DEFAULT 'PRE_CHECK',
   precheck_status public.precheck_status NOT NULL DEFAULT 'Belum Diperiksa',
   physical_status public.physical_status NOT NULL DEFAULT 'Belum Diperiksa',
   verification_status public.check_status NOT NULL DEFAULT 'Belum Diperiksa',
@@ -254,6 +254,9 @@ CREATE INDEX IF NOT EXISTS idx_billing_submissions_current_stage ON public.billi
 CREATE INDEX IF NOT EXISTS idx_billing_submissions_final_status ON public.billing_submissions(final_status);
 CREATE INDEX IF NOT EXISTS idx_billing_submissions_sla_status ON public.billing_submissions(sla_status);
 CREATE INDEX IF NOT EXISTS idx_billing_submissions_received_date ON public.billing_submissions(received_date DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_billing_submissions_active_vendor_invoice
+  ON public.billing_submissions (vendor_id, lower(btrim(invoice_no)))
+  WHERE final_status <> 'Dibatalkan';
 
 CREATE INDEX IF NOT EXISTS idx_submission_documents_submission_id ON public.submission_documents(submission_id);
 CREATE INDEX IF NOT EXISTS idx_submission_documents_latest ON public.submission_documents(submission_id, category) WHERE is_latest = true;
@@ -606,7 +609,7 @@ CREATE POLICY submissions_select_policy
     )
   );
 
--- INSERT: Mitra hanya untuk vendor_id sendiri & stage awal SUBMITTED; Admin/Super Admin juga diizinkan
+-- INSERT: Mitra hanya untuk vendor_id sendiri & stage awal SUBMITTED / PRE_CHECK; Admin/Super Admin juga diizinkan
 CREATE POLICY submissions_insert_mitra
   ON public.billing_submissions
   FOR INSERT
@@ -615,7 +618,7 @@ CREATE POLICY submissions_insert_mitra
     public.current_user_role() = 'mitra'
     AND vendor_id = public.current_user_vendor_id()
     AND submitted_by = auth.uid()
-    AND current_stage = 'SUBMITTED'
+    AND current_stage IN ('SUBMITTED', 'PRE_CHECK')
   );
 
 CREATE POLICY submissions_insert_internal
@@ -769,6 +772,7 @@ CREATE POLICY submission_documents_insert_mitra
         AND (
           bs.current_stage IN (
             'SUBMITTED',
+            'PRE_CHECK',
             'REVISION_SOFTCOPY',
             'REVISION_HARDCOPY',
             'REVISION_PIC',
