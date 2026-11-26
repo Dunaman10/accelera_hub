@@ -419,7 +419,10 @@ export function DashboardShell({
           <div
             className={cn(
               "mx-auto w-full",
-              pathname.startsWith("/admin/submissions/")
+              pathname.startsWith("/admin/submissions/") ||
+                pathname.startsWith("/pic/submissions/") ||
+                pathname.startsWith("/akuntansi/submissions/") ||
+                pathname.startsWith("/spp/submissions/")
                 ? "max-w-[1600px]"
                 : "max-w-6xl"
             )}

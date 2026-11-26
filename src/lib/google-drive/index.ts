@@ -390,6 +390,73 @@ export async function createResumableUploadSession({
   };
 }
 
+export interface UploadBinaryToDriveParams {
+  fileName: string;
+  mimeType: string;
+  folderId: string;
+  bytes: Uint8Array;
+  description?: string;
+}
+
+/**
+ * Mengunggah biner (misal PDF SPP resmi hasil generator `pdf-lib`) secara langsung
+ * dari server ke folder Google Drive pengajuan (`drive_folder_id`) melalui
+ * Resumable Upload REST API (`fetch` murni, kompatibel Cloudflare Workers).
+ */
+export async function uploadBinaryFileToDrive({
+  fileName,
+  mimeType,
+  folderId,
+  bytes,
+  description,
+}: UploadBinaryToDriveParams): Promise<DriveFileMetadata> {
+  const session = await createResumableUploadSession({
+    fileName,
+    mimeType,
+    folderId,
+    fileSizeBytes: bytes.byteLength,
+    description,
+  });
+
+  const payload = new Uint8Array(bytes.byteLength);
+  payload.set(bytes);
+
+  const putResponse = await fetch(session.uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": session.mimeType,
+      "Content-Length": String(payload.byteLength),
+    },
+    body: payload.buffer,
+    cache: "no-store",
+  });
+
+  if (!putResponse.ok) {
+    const errorText = await putResponse.text();
+    throw new Error(
+      `Failed uploading binary file "${session.fileName}" to Google Drive (${putResponse.status}): ${errorText}`
+    );
+  }
+
+  const uploaded = (await putResponse.json()) as {
+    id: string;
+    name: string;
+    mimeType: string;
+    size?: string;
+    createdTime?: string;
+    modifiedTime?: string;
+  };
+
+  return {
+    id: uploaded.id,
+    name: uploaded.name,
+    mimeType: uploaded.mimeType,
+    size: uploaded.size ? Number(uploaded.size) : payload.byteLength,
+    createdTime: uploaded.createdTime,
+    modifiedTime: uploaded.modifiedTime,
+  };
+}
+
 /**
  * Mengambil metadata file private dari Google Drive berdasarkan `fileId`.
  */

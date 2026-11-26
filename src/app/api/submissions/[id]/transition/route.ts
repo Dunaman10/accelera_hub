@@ -25,11 +25,17 @@ export type TransitionActionType =
   | "physical_revision"
   | "coord_forward_mitra"
   | "coord_return_internal"
-  | "mitra_resubmit";
+  | "mitra_resubmit"
+  | "pic_approve"
+  | "pic_reject"
+  | "akuntansi_approve"
+  | "akuntansi_reject";
+
+export type AkuntansiRejectTarget = "revisi_mitra" | "return_pic";
 
 interface TransitionRequestBody {
   action?: TransitionActionType;
-  // Catatan temuan / kekurangan (mendukung alias findings / finding_notes / latest_notes)
+  // Catatan temuan / kekurangan (mendukung alias findings / finding_notes / latest_notes / notes)
   findings?: string | null;
   finding_notes?: string | null;
   latest_notes?: string | null;
@@ -46,6 +52,9 @@ interface TransitionRequestBody {
   physical_status?: string | null;
   hardcopy_status?: string | null;
   verification_status?: string | null;
+  validation_status?: string | null;
+  // Tujuan pengembalian terarah dari Akuntansi ("revisi_mitra" | "return_pic")
+  reject_target?: AkuntansiRejectTarget | null;
 }
 
 function normalizePhysicalStatus(raw?: string | null): PhysicalStatus | null {
@@ -191,6 +200,25 @@ export async function POST(
 
     const isAdminOrSuper =
       profile.role === "admin_accelera" || profile.role === "super_admin";
+    const isPicOrSuper =
+      profile.role === "pic_usaha" || profile.role === "super_admin";
+    const isAkuntansiOrSuper =
+      profile.role === "akuntansi" || profile.role === "super_admin";
+
+    // Penguncian Read-Only jika pengajuan sudah COMPLETED / Selesai
+    if (
+      submission.current_stage === "COMPLETED" ||
+      submission.final_status === "Selesai"
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Pengajuan ini telah selesai dan SPP telah diterbitkan (Read-Only).",
+        },
+        { status: 400 }
+      );
+    }
 
     const currentStage = submission.current_stage;
     const nowIso = new Date().toISOString();
@@ -200,6 +228,7 @@ export async function POST(
     let nextPrecheckStatus: PrecheckStatus = submission.precheck_status;
     let nextPhysicalStatus: PhysicalStatus = submission.physical_status;
     let nextVerificationStatus: CheckStatus = submission.verification_status;
+    let nextValidationStatus: CheckStatus = submission.validation_status;
     let nextFindings: string | null = submission.findings;
     let nextFollowupAction: FollowupStatus = submission.followup_action;
     let nextFollowupPic: string | null =
@@ -208,6 +237,7 @@ export async function POST(
         : submission.followup_pic;
     let nextHardcopyDate: string | null = submission.hardcopy_date;
     let decisionLabel = "";
+    let closeLogDecision: string | null = null;
     let logNotes = body.notes?.trim() || "";
     let notificationTitle = "";
     let notificationMessage = "";
@@ -687,6 +717,206 @@ export async function POST(
         break;
       }
 
+      // -----------------------------------------------------------------------
+      // 6A. APPROVAL PIC USAHA -> SETUJUI (Lanjut ke Approval Akuntansi, SLA 2 HK)
+      // -----------------------------------------------------------------------
+      case "pic_approve": {
+        if (!isPicOrSuper) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                "Hanya PIC Usaha yang berwenang menyetujui substansi pekerjaan pada tahap ini.",
+            },
+            { status: 403 }
+          );
+        }
+
+        if (currentStage !== "PIC_APPROVAL") {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: `Transisi ditolak: Pengajuan sedang berada di tahap "${STAGE_LABELS[currentStage]}", bukan Approval PIC Usaha.`,
+            },
+            { status: 400 }
+          );
+        }
+
+        nextVerificationStatus = "Lulus";
+        nextStage = "ACCOUNTING_APPROVAL";
+        nextFinalStatus = "Dalam Proses";
+        nextFollowupAction = "Tidak Ada";
+        nextFindings = rawFindings || null;
+        closeLogDecision = "approved";
+        decisionLabel = "Disetujui PIC Usaha -> Teruskan ke Akuntansi";
+        logNotes =
+          logNotes ||
+          rawFindings ||
+          "Substansi pekerjaan, BAST, dan nilai tagihan telah disetujui oleh PIC Usaha. Diteruskan ke tahap Approval Akuntansi (Target SLA: 2 Hari Kerja).";
+        notificationTitle = `Disetujui PIC Usaha (${submission.agenda_no})`;
+        notificationMessage = `Substansi pekerjaan untuk invoice ${submission.invoice_no} telah disetujui oleh PIC Usaha dan kini memasuki tahap Validasi Akuntansi & Perpajakan.`;
+        break;
+      }
+
+      // -----------------------------------------------------------------------
+      // 6B. APPROVAL PIC USAHA -> KEMBALIKAN UNTUK REVISI (Wajib Catatan, SLA PAUSE)
+      // -----------------------------------------------------------------------
+      case "pic_reject": {
+        if (!isPicOrSuper) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                "Hanya PIC Usaha yang berwenang mengembalikan berkas pada tahap ini.",
+            },
+            { status: 403 }
+          );
+        }
+
+        if (currentStage !== "PIC_APPROVAL") {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: `Transisi ditolak: Pengajuan sedang berada di tahap "${STAGE_LABELS[currentStage]}", bukan Approval PIC Usaha.`,
+            },
+            { status: 400 }
+          );
+        }
+
+        const effectivePicNotes = rawFindings || logNotes;
+        if (!effectivePicNotes) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                "Catatan temuan (notes) wajib diisi saat mengembalikan pengajuan untuk revisi.",
+            },
+            { status: 400 }
+          );
+        }
+
+        nextVerificationStatus = "Tidak Lulus";
+        nextStage = "REVISION_PIC";
+        nextFollowupAction = "Minta Revisi";
+        nextFinalStatus = "Menunggu Mitra";
+        nextFindings = effectivePicNotes;
+        closeLogDecision = "rejected";
+        decisionLabel = "Dikembalikan oleh PIC Usaha untuk Revisi";
+        logNotes = `Temuan PIC Usaha: ${effectivePicNotes} (SLA di-PAUSE)`;
+        notificationTitle = `Temuan Substansi PIC Usaha (${submission.agenda_no})`;
+        notificationMessage = `Terdapat catatan temuan dari PIC Usaha pada invoice ${submission.invoice_no}: "${effectivePicNotes}".`;
+        break;
+      }
+
+      // -----------------------------------------------------------------------
+      // 7A. VALIDASI AKUNTANSI -> LULUS (Lanjut ke Penyusunan SPP, SLA 1 HK)
+      // -----------------------------------------------------------------------
+      case "akuntansi_approve": {
+        if (!isAkuntansiOrSuper) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                "Hanya Tim Akuntansi yang berwenang menyatakan Validasi Lulus.",
+            },
+            { status: 403 }
+          );
+        }
+
+        if (currentStage !== "ACCOUNTING_APPROVAL") {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: `Transisi ditolak: Pengajuan sedang berada di tahap "${STAGE_LABELS[currentStage]}", bukan Approval Akuntansi.`,
+            },
+            { status: 400 }
+          );
+        }
+
+        nextValidationStatus = "Lulus";
+        nextStage = "SPP_PROCESSING";
+        nextFinalStatus = "Dalam Proses";
+        nextFollowupAction = "Tidak Ada";
+        nextFindings = rawFindings || null;
+        closeLogDecision = "approved";
+        decisionLabel = "Validasi Akuntansi Lulus -> Penyusunan SPP";
+        logNotes =
+          logNotes ||
+          rawFindings ||
+          "Validasi nominal, DPP/PPN/PPh, Faktur Pajak, dan Kontrak/PO dinyatakan LULUS oleh Tim Akuntansi. Diteruskan ke tahap Penyusunan SPP (Target SLA: 1 Hari Kerja).";
+        notificationTitle = `Validasi Akuntansi Lulus (${submission.agenda_no})`;
+        notificationMessage = `Validasi perpajakan dan akuntansi untuk invoice ${submission.invoice_no} dinyatakan LULUS. Pengajuan kini berada pada tahap Penyusunan & Penerbitan SPP.`;
+        break;
+      }
+
+      // -----------------------------------------------------------------------
+      // 7B. VALIDASI AKUNTANSI -> TIDAK LULUS / TEMUAN (Tujuan Pengembalian Terarah)
+      // -----------------------------------------------------------------------
+      case "akuntansi_reject": {
+        if (!isAkuntansiOrSuper) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                "Hanya Tim Akuntansi yang berwenang menetapkan temuan validasi akuntansi.",
+            },
+            { status: 403 }
+          );
+        }
+
+        if (currentStage !== "ACCOUNTING_APPROVAL") {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: `Transisi ditolak: Pengajuan sedang berada di tahap "${STAGE_LABELS[currentStage]}", bukan Approval Akuntansi.`,
+            },
+            { status: 400 }
+          );
+        }
+
+        const effectiveAccNotes = rawFindings || logNotes;
+        if (!effectiveAccNotes) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                "Rincian temuan wajib diisi apabila Validasi Akuntansi Tidak Lulus.",
+            },
+            { status: 400 }
+          );
+        }
+
+        const rejectTarget: AkuntansiRejectTarget =
+          body.reject_target === "return_pic" ? "return_pic" : "revisi_mitra";
+
+        nextValidationStatus = "Tidak Lulus";
+        nextFindings = effectiveAccNotes;
+        closeLogDecision = "rejected";
+
+        if (rejectTarget === "return_pic") {
+          // Opsi B: Kembalikan ke PIC Usaha (SLA Internal Aktif)
+          nextStage = "PIC_APPROVAL";
+          nextFinalStatus = "Dalam Proses";
+          nextFollowupAction = "Koordinasi Internal";
+          decisionLabel =
+            "Validasi Akuntansi Tidak Lulus -> Kembalikan ke PIC Usaha";
+          logNotes = `Temuan Akuntansi (Dikembalikan ke PIC Usaha): ${effectiveAccNotes}`;
+          notificationTitle = `Koordinasi Internal Akuntansi ke PIC Usaha (${submission.agenda_no})`;
+          notificationMessage = `Tim Akuntansi mengembalikan berkas invoice ${submission.invoice_no} ke PIC Usaha untuk klarifikasi: "${effectiveAccNotes}".`;
+        } else {
+          // Opsi A: Koordinasi Admin Accelera / Revisi Mitra (SLA di-PAUSE)
+          nextStage = "REVISION_ACCOUNTING";
+          nextFinalStatus = "Menunggu Mitra";
+          nextFollowupAction = "Minta Revisi";
+          decisionLabel =
+            "Validasi Akuntansi Tidak Lulus -> Revisi Mitra / Koordinasi Admin";
+          logNotes = `Temuan Pajak / Akuntansi: ${effectiveAccNotes} (SLA di-PAUSE)`;
+          notificationTitle = `Temuan Validasi Pajak & Akuntansi (${submission.agenda_no})`;
+          notificationMessage = `Terdapat temuan validasi akuntansi/pajak pada invoice ${submission.invoice_no}: "${effectiveAccNotes}". Mohon perbaiki dokumen melalui Portal Mitra.`;
+        }
+        break;
+      }
+
       default: {
         return NextResponse.json(
           {
@@ -750,6 +980,7 @@ export async function POST(
       precheck_status: nextPrecheckStatus,
       physical_status: nextPhysicalStatus,
       verification_status: nextVerificationStatus,
+      validation_status: nextValidationStatus,
       findings: nextFindings,
       followup_action: nextFollowupAction,
       followup_pic: nextFollowupPic,
@@ -797,21 +1028,26 @@ export async function POST(
     // Tutup stage_log lama yang masih terbuka
     const adminSupabase = createAdminClient();
     if (openLog) {
+      const closeLogUpdatePayload = {
+        exited_at: nowIso,
+        working_days_spent: openLogWorkingDays,
+        ...(closeLogDecision
+          ? {
+              decision: closeLogDecision,
+              action_by: user.id,
+            }
+          : {}),
+      };
+
       const { error: closeLogErr } = await supabase
         .from("stage_logs")
-        .update({
-          exited_at: nowIso,
-          working_days_spent: openLogWorkingDays,
-        })
+        .update(closeLogUpdatePayload)
         .eq("id", openLog.id);
 
       if (closeLogErr) {
         await adminSupabase
           .from("stage_logs")
-          .update({
-            exited_at: nowIso,
-            working_days_spent: openLogWorkingDays,
-          })
+          .update(closeLogUpdatePayload)
           .eq("id", openLog.id);
       }
     }

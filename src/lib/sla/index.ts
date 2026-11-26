@@ -106,3 +106,44 @@ export function evaluateSlaStatus(
   }
   return "Dalam Proses";
 }
+
+export interface StageSlaIndicator {
+  stageLimitDays: number;
+  elapsedDays: number;
+  remainingDays: number;
+  isOverdue: boolean;
+  isWarning: boolean;
+  label: string;
+}
+
+/**
+ * Menghitung indikator sisa SLA spesifik tahap aktif (misal PIC Usaha = 1 HK, Akuntansi = 2 HK, SPP = 1 HK)
+ */
+export function computeStageSlaIndicator(
+  stage: SubmissionStage,
+  stageEnteredAt?: string | null,
+  holidayDates: Iterable<string> = [],
+  nowAt: Date | string = new Date()
+): StageSlaIndicator {
+  const stageLimitDays = SLA_STAGE_TARGETS[stage] ?? 1;
+  const elapsedDays = stageEnteredAt
+    ? calculateWorkingDays(stageEnteredAt, nowAt, holidayDates)
+    : 0;
+  const rawRemaining = Number((stageLimitDays - elapsedDays).toFixed(2));
+  const remainingDays = Math.max(0, rawRemaining);
+  const isOverdue = elapsedDays > stageLimitDays;
+  const isWarning = !isOverdue && remainingDays <= 0.35;
+
+  const label = isOverdue
+    ? `Lewat ${Number((elapsedDays - stageLimitDays).toFixed(2))} HK (Batas ${stageLimitDays} HK)`
+    : `Sisa ${remainingDays} HK dari ${stageLimitDays} HK`;
+
+  return {
+    stageLimitDays,
+    elapsedDays,
+    remainingDays,
+    isOverdue,
+    isWarning,
+    label,
+  };
+}

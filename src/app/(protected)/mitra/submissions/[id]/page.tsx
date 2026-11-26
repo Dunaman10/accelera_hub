@@ -606,14 +606,37 @@ async function MitraSubmissionDetailContent({
               </div>
             )}
             {sppDoc && (
-              <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
+              <div className="mt-3 space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
                 <div className="flex items-center gap-2 font-semibold text-emerald-800 dark:text-emerald-300">
                   <ShieldCheck className="size-4" />
                   <span>SPP Terbit: {sppDoc.spp_no}</span>
                 </div>
-                <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                  Hash: {sppDoc.qr_verification_hash}
+                <p className="font-mono text-[11px] text-muted-foreground">
+                  Token QR: {sppDoc.qr_verification_hash}
                 </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Link
+                    href={`/verify/${encodeURIComponent(
+                      sppDoc.qr_verification_hash
+                    )}`}
+                    target="_blank"
+                  >
+                    <Button variant="outline" size="xs" className="gap-1">
+                      Verifikasi QR Publik
+                      <ExternalLink className="size-3" />
+                    </Button>
+                  </Link>
+                  <a
+                    href={`/api/submissions/${submission.id}/pdf?type=spp&download=1`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="outline" size="xs" className="gap-1">
+                      Unduh PDF SPP
+                      <ExternalLink className="size-3" />
+                    </Button>
+                  </a>
+                </div>
               </div>
             )}
           </CardContent>
