@@ -202,8 +202,8 @@ async function AkuntansiContent() {
       {/* TABEL UTAMA ANTREAN VALIDASI AKUNTANSI */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileSpreadsheet className="size-4 text-primary" />
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+            <FileSpreadsheet className="size-4 shrink-0 text-primary" />
             <span>Antrean Aktif Validasi Akuntansi &amp; Pajak</span>
             <Badge variant="secondary" className="font-mono">
               {activeQueue.length} pengajuan

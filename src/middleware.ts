@@ -13,8 +13,9 @@ export const config = {
      * Jalankan middleware pada semua rute kecuali:
      * - /api/cron/* (menggunakan Bearer CRON_SECRET, bukan sesi cookie)
      * - _next/static & _next/image (aset statis)
+     * - manifest.json, manifest.webmanifest, sw.js, .well-known/assetlinks.json
      * - favicon.ico & aset gambar/ikon publik
      */
-    "/((?!api/cron|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api/cron|_next/static|_next/image|favicon\\.ico|manifest\\.json|manifest\\.webmanifest|sw\\.js|\\.well-known/assetlinks\\.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

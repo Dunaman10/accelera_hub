@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
   calculateWorkingDays,
@@ -43,29 +44,41 @@ export type TransitionActionType =
 
 export type AkuntansiRejectTarget = "revisi_mitra" | "return_pic";
 
-interface TransitionRequestBody {
-  action?: TransitionActionType;
-  // Catatan temuan / kekurangan (mendukung alias findings / finding_notes / latest_notes / notes)
-  findings?: string | null;
-  finding_notes?: string | null;
-  latest_notes?: string | null;
-  notes?: string | null;
-  // Tindak lanjut (mendukung alias followup_action / follow_up_action)
-  followup_action?: string | null;
-  follow_up_action?: string | null;
-  followup_pic?: string | null;
-  target_finish_date?: string | null;
-  // Penerimaan hardcopy (mendukung alias hardcopy_date / hardcopy_received_at)
-  hardcopy_date?: string | null;
-  hardcopy_received_at?: string | null;
-  // Status pemeriksaan cek fisik & verifikasi (mendukung alias physical_status / hardcopy_status)
-  physical_status?: string | null;
-  hardcopy_status?: string | null;
-  verification_status?: string | null;
-  validation_status?: string | null;
-  // Tujuan pengembalian terarah dari Akuntansi ("revisi_mitra" | "return_pic")
-  reject_target?: AkuntansiRejectTarget | null;
-}
+const TransitionRequestSchema = z.object({
+  action: z.enum(
+    [
+      "precheck_pass",
+      "precheck_revision",
+      "receive_hardcopy",
+      "physical_forward_pic",
+      "physical_revision",
+      "coord_forward_mitra",
+      "coord_return_internal",
+      "mitra_resubmit",
+      "pic_approve",
+      "pic_reject",
+      "akuntansi_approve",
+      "akuntansi_reject",
+      "cancel_submission",
+    ],
+    { error: "Parameter action transisi tidak valid atau belum diisi." }
+  ),
+  findings: z.string().nullable().optional(),
+  finding_notes: z.string().nullable().optional(),
+  latest_notes: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  followup_action: z.string().nullable().optional(),
+  follow_up_action: z.string().nullable().optional(),
+  followup_pic: z.string().nullable().optional(),
+  target_finish_date: z.string().nullable().optional(),
+  hardcopy_date: z.string().nullable().optional(),
+  hardcopy_received_at: z.string().nullable().optional(),
+  physical_status: z.string().nullable().optional(),
+  hardcopy_status: z.string().nullable().optional(),
+  verification_status: z.string().nullable().optional(),
+  validation_status: z.string().nullable().optional(),
+  reject_target: z.enum(["revisi_mitra", "return_pic"]).nullable().optional(),
+});
 
 function normalizePhysicalStatus(raw?: string | null): PhysicalStatus | null {
   if (!raw) return null;
@@ -183,15 +196,22 @@ export async function POST(
       }
     }
 
-    const body = (await request.json()) as TransitionRequestBody;
-    const action = body.action;
-
-    if (!action) {
+    const rawBody = await request.json().catch(() => null);
+    const parsed = TransitionRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: "Parameter action transisi wajib diisi." },
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ??
+            "Parameter action transisi tidak valid.",
+        },
         { status: 400 }
       );
     }
+
+    const body = parsed.data;
+    const action: TransitionActionType = body.action;
 
     // Resolusi input temuan/catatan
     const rawFindings = (

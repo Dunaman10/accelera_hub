@@ -43,11 +43,16 @@ export function NotificationBell({ role }: NotificationBellProps) {
   }, []);
 
   React.useEffect(() => {
-    void fetchNotifications();
+    const initialTimer = window.setTimeout(() => {
+      void fetchNotifications();
+    }, 0);
     const interval = window.setInterval(() => {
       void fetchNotifications();
     }, 30000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(interval);
+    };
   }, [fetchNotifications]);
 
   // Tutup popover saat klik di luar
@@ -134,8 +139,8 @@ export function NotificationBell({ role }: NotificationBellProps) {
       </Button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-80 sm:w-96 rounded-2xl border border-border bg-popover text-popover-foreground shadow-xl">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
+        <div className="fixed inset-x-3 top-19 z-50 overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-xl sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-96">
+          <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3.5">
             <div>
               <p className="text-sm font-bold text-foreground">
                 Notifikasi In-App

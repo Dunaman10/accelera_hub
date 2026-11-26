@@ -15,6 +15,8 @@ service = "accelera-hub"
 [observability]
 enabled = true
 
-# Jadwal cron harian (08:00 WIB / 01:00 UTC) untuk anti-pause Supabase Free Tier & pengingat SLA
+# Jadwal Cron Produksi (UTC):
+# 1) "0 0 */3 * *"  -> Tiap 3 hari (/api/cron/keep-alive anti-pause Supabase Free Tier)
+# 2) "30 1 * * 1-5" -> Senin-Jumat pukul 08.30 WIB / 01.30 UTC (/api/cron/sla-reminder)
 [triggers]
-crons = ["0 1 * * *"]
+crons = ["0 0 */3 * *", "30 1 * * 1-5"]

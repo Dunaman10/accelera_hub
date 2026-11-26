@@ -196,8 +196,8 @@ async function SppMonitoringContent() {
       {/* 1. TABEL ANTREAN PENYUSUNAN SPP (SPP_PROCESSING) */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Send className="size-4 text-primary" />
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+            <Send className="size-4 shrink-0 text-primary" />
             <span>Antrean Penyusunan &amp; Penerbitan SPP</span>
             <Badge variant="secondary" className="font-mono">
               {activeSppQueue.length} pengajuan
@@ -329,8 +329,8 @@ async function SppMonitoringContent() {
       {/* 2. TABEL ARSIP DOKUMEN SPP YANG TELAH DITERBITKAN */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <QrCode className="size-4 text-primary" />
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+            <QrCode className="size-4 shrink-0 text-primary" />
             <span>Arsip Dokumen SPP Terbit &amp; Terkirim ke Keuangan</span>
             <Badge variant="secondary" className="font-mono">
               {sppRows.length} SPP
@@ -396,11 +396,14 @@ async function SppMonitoringContent() {
                               spp.qr_verification_hash
                             )}`}
                             target="_blank"
-                            className="inline-flex items-center gap-1 font-mono text-[11px] text-emerald-700 hover:underline dark:text-emerald-300"
+                            title={spp.qr_verification_hash}
+                            className="inline-flex max-w-[180px] items-center gap-1 font-mono text-[11px] text-emerald-700 hover:underline dark:text-emerald-300"
                           >
-                            <CheckCircle2 className="size-3" />
-                            {spp.qr_verification_hash}
-                            <ExternalLink className="size-2.5" />
+                            <CheckCircle2 className="size-3 shrink-0" />
+                            <span className="truncate">
+                              {spp.qr_verification_hash}
+                            </span>
+                            <ExternalLink className="size-2.5 shrink-0" />
                           </Link>
                         </TableCell>
 
@@ -414,40 +417,32 @@ async function SppMonitoringContent() {
                           )}
                         </TableCell>
 
-                        <TableCell className="text-right">
-                          <div className="flex flex-wrap items-center justify-end gap-1.5">
-                            <a
-                              href={`/api/submissions/${spp.submission_id}/pdf?type=spp&download=1`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <Button
-                                variant="outline"
-                                size="xs"
-                                className="gap-1"
+                        <TableCell className="text-right whitespace-nowrap">
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <div className="inline-flex items-center overflow-hidden rounded-lg border border-border bg-background shadow-2xs">
+                              <a
+                                href={`/api/submissions/${spp.submission_id}/pdf?type=spp&download=1`}
+                                download
+                                title="Unduh PDF SPP"
+                                className="inline-flex h-7 items-center gap-1 border-r border-border px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
                               >
-                                <Download className="size-3" />
-                                PDF SPP
-                              </Button>
-                            </a>
-                            <a
-                              href={`/api/submissions/${spp.submission_id}/pdf?type=checksheet&download=1`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <Button
-                                variant="outline"
-                                size="xs"
-                                className="gap-1"
+                                <Download className="size-3 text-brand-teal" />
+                                SPP
+                              </a>
+                              <a
+                                href={`/api/submissions/${spp.submission_id}/pdf?type=checksheet&download=1`}
+                                download
+                                title="Unduh PDF Lembar Hasil Cek"
+                                className="inline-flex h-7 items-center gap-1 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
                               >
-                                <Download className="size-3" />
+                                <Download className="size-3 text-muted-foreground" />
                                 Lembar Cek
-                              </Button>
-                            </a>
+                              </a>
+                            </div>
                             <Link
                               href={`/spp/submissions/${spp.submission_id}`}
                             >
-                              <Button size="xs" className="gap-1">
+                              <Button size="xs" className="h-7 gap-1 px-2.5">
                                 <Eye className="size-3" />
                                 Detail
                               </Button>

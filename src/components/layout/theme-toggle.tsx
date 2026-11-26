@@ -20,16 +20,18 @@ interface ThemeToggleProps {
   showLabel?: boolean;
 }
 
+const emptySubscribe = () => () => {};
+
 export function ThemeToggle({
   className,
   showLabel = false,
 }: ThemeToggleProps) {
   const { theme, resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = React.useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
 
   const currentTheme = mounted ? theme ?? "system" : "system";
   const isDark = mounted && resolvedTheme === "dark";

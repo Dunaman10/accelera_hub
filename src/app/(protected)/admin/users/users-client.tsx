@@ -108,9 +108,12 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
   const [confirmToggleProfile, setConfirmToggleProfile] =
     React.useState<Profile | null>(null);
 
-  React.useEffect(() => {
+  const [prevInitialProfiles, setPrevInitialProfiles] =
+    React.useState<Profile[]>(initialProfiles);
+  if (initialProfiles !== prevInitialProfiles) {
+    setPrevInitialProfiles(initialProfiles);
     setProfiles(initialProfiles);
-  }, [initialProfiles]);
+  }
 
   const vendorMap = React.useMemo(() => {
     const map = new Map<string, Vendor>();

@@ -11,7 +11,7 @@ const GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_DRIVE_API_BASE = "https://www.googleapis.com/drive/v3";
 const GOOGLE_DRIVE_UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3";
 const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
-const DEFAULT_GMAIL_QUOTA_BYTES = 15 * 1024 * 1024 * 1024; // 15 GB
+export const DEFAULT_GMAIL_QUOTA_BYTES = 15 * 1024 * 1024 * 1024; // 15 GB
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000; // 5 menit sebelum expired
 
 const INDONESIAN_MONTH_LABELS = [

@@ -21,10 +21,17 @@ export async function compressImageIfNeeded(
 ): Promise<CompressionResult> {
   const originalSize = inputFile.size;
   const mime = inputFile.type.toLowerCase();
-  const isImage =
+  const isStandardJpgOrPng =
     mime === "image/jpeg" || mime === "image/jpg" || mime === "image/png";
+  const isAnyImage =
+    isStandardJpgOrPng ||
+    mime.startsWith("image/") ||
+    /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(inputFile.name);
 
-  if (!isImage || originalSize <= COMPRESSION_THRESHOLD_BYTES) {
+  if (
+    !isAnyImage ||
+    (isStandardJpgOrPng && originalSize <= COMPRESSION_THRESHOLD_BYTES)
+  ) {
     return {
       file: inputFile,
       wasCompressed: false,
@@ -83,7 +90,7 @@ export async function compressImageIfNeeded(
       }
     }
 
-    if (!bestBlob || bestBlob.size >= originalSize) {
+    if (!bestBlob || (isStandardJpgOrPng && bestBlob.size >= originalSize)) {
       return {
         file: inputFile,
         wasCompressed: false,
@@ -92,7 +99,9 @@ export async function compressImageIfNeeded(
       };
     }
 
-    const baseName = inputFile.name.replace(/\.(png|jpg|jpeg)$/i, "");
+    const baseName =
+      inputFile.name.replace(/\.(png|jpg|jpeg|webp|heic|heif)$/i, "") ||
+      `kamera-${Date.now()}`;
     const compressedFile = new File([bestBlob], `${baseName}.jpg`, {
       type: "image/jpeg",
       lastModified: Date.now(),

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
   ensureSubmissionDriveFolder,
@@ -20,9 +21,9 @@ import {
 import { generateSppPdf } from "@/lib/pdf/spp-pdf";
 import type { BillingSubmission, Profile, SppDocument } from "@/types";
 
-interface FinalizeSppRequestBody {
-  notes?: string | null;
-}
+const FinalizeSppRequestSchema = z.object({
+  notes: z.string().trim().max(2000).nullable().optional(),
+});
 
 /**
  * Menghasilkan nomor SPP otomatis dengan format: `SPP/{TAHUN}/{BULAN}/{URUT}`
@@ -131,12 +132,20 @@ export async function POST(
       );
     }
 
-    let body: FinalizeSppRequestBody = {};
-    try {
-      body = (await request.json()) as FinalizeSppRequestBody;
-    } catch {
-      body = {};
+    const rawBody = await request.json().catch(() => ({}));
+    const parsedBody = FinalizeSppRequestSchema.safeParse(rawBody ?? {});
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            parsedBody.error.issues[0]?.message ??
+            "Payload penerbitan SPP tidak valid.",
+        },
+        { status: 400 }
+      );
     }
+    const body = parsedBody.data;
 
     const adminSupabase = createAdminClient();
 
@@ -153,14 +162,20 @@ export async function POST(
       );
     }
 
-    // ATURAN PENGUNCIAN KETAT 1:1
-    // 1. Tolak jika validation_status !== 'Lulus'
-    if (submission.validation_status !== "Lulus") {
+    // ATURAN PENGUNCIAN KETAT 1:1 & STATE MACHINE GUARD
+    // 1. Tolak jika validation_status !== 'Lulus' atau gerbang sebelumnya belum lulus
+    if (
+      submission.validation_status.toLowerCase() !== "lulus" ||
+      submission.verification_status.toLowerCase() !== "lulus" ||
+      submission.physical_status.toLowerCase() !== "lengkap" ||
+      submission.precheck_status.toLowerCase() !== "pass" ||
+      submission.current_stage !== "SPP_PROCESSING"
+    ) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            "Blokir Penerbitan SPP: Pengajuan ini belum dinyatakan 'Lulus' pada tahap Validasi Akuntansi.",
+            "Blokir State Machine & Penerbitan SPP: Pengajuan wajib berada pada tahap Penyusunan SPP dan telah dinyatakan 'Lulus' pada seluruh gerbang pemeriksaan hingga Validasi Akuntansi.",
         },
         { status: 400 }
       );

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -22,21 +23,45 @@ export const metadata: Metadata = {
     template: "%s | Accelera HUB",
   },
   description:
-    "Platform terpadu verifikasi, validasi, dan pemantauan SLA 6 hari kerja dokumen penagihan Mitra Accelera.",
+    "Sistem Verifikasi, Validasi Dokumen Penagihan & Monitoring SLA Internal",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Accelera HUB",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
-      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+      { url: "/icons/icon-192x192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512x512.png", type: "image/png", sizes: "512x512" },
     ],
-    apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [
+      {
+        url: "/icons/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+    shortcut: ["/icons/icon-192x192.png"],
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "msapplication-TileColor": "#1F4E78",
   },
 };
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#0B2E5C" },
-    { media: "(prefers-color-scheme: dark)", color: "#071221" },
+    { media: "(prefers-color-scheme: light)", color: "#1F4E78" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B2E5C" },
   ],
 };
 
@@ -54,6 +79,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           enableSystem
           disableTransitionOnChange
         >
+          <ServiceWorkerRegister />
           {children}
           <Toaster richColors closeButton position="top-right" />
         </ThemeProvider>

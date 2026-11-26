@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
   generateCheckSheetPdf,
@@ -7,6 +8,11 @@ import {
 } from "@/lib/pdf/spp-pdf";
 import { ROLE_LABELS } from "@/lib/constants";
 import type { Profile } from "@/types";
+
+const PdfQuerySchema = z.object({
+  type: z.enum(["checksheet", "spp"]).default("checksheet"),
+  download: z.enum(["0", "1", "true", "false"]).optional(),
+});
 
 /**
  * GET /api/submissions/[id]/pdf?type=checksheet|spp&download=1
@@ -20,13 +26,20 @@ export async function GET(
 ) {
   try {
     const { id: submissionId } = await context.params;
-    const pdfType =
-      request.nextUrl.searchParams.get("type")?.toLowerCase() === "spp"
-        ? "spp"
-        : "checksheet";
+    const rawType = request.nextUrl.searchParams.get("type")?.toLowerCase();
+    const rawDownload = request.nextUrl.searchParams
+      .get("download")
+      ?.toLowerCase();
+    const parsedQuery = PdfQuerySchema.safeParse({
+      type: rawType || "checksheet",
+      download: rawDownload || undefined,
+    });
+
+    const pdfType = parsedQuery.success ? parsedQuery.data.type : "checksheet";
     const isDownload =
-      request.nextUrl.searchParams.get("download") === "1" ||
-      request.nextUrl.searchParams.get("download") === "true";
+      parsedQuery.success &&
+      (parsedQuery.data.download === "1" ||
+        parsedQuery.data.download === "true");
 
     const supabase = await createClient();
     const {

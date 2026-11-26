@@ -101,9 +101,12 @@ export function HolidaysClient({ initialHolidays }: HolidaysClientProps) {
   const [confirmDeleteHoliday, setConfirmDeleteHoliday] =
     React.useState<NationalHoliday | null>(null);
 
-  React.useEffect(() => {
+  const [prevInitialHolidays, setPrevInitialHolidays] =
+    React.useState<NationalHoliday[]>(initialHolidays);
+  if (initialHolidays !== prevInitialHolidays) {
+    setPrevInitialHolidays(initialHolidays);
     setHolidays(initialHolidays);
-  }, [initialHolidays]);
+  }
 
   const availableYears = React.useMemo(() => {
     const years = new Set<number>();

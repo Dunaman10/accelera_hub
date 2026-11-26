@@ -124,9 +124,12 @@ async function HeaderAuthAction() {
   if (ctx) {
     return (
       <Link href={dashboardHref}>
-        <Button size="lg" className="gap-2">
-          Buka Workspace ({ROLE_LABELS[ctx.profile.role]})
-          <ArrowRight className="size-4" />
+        <Button size="default" className="gap-1.5 px-3 text-xs sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
+          <span className="sm:hidden">Workspace</span>
+          <span className="hidden sm:inline">
+            Buka Workspace ({ROLE_LABELS[ctx.profile.role]})
+          </span>
+          <ArrowRight className="size-3.5 sm:size-4" />
         </Button>
       </Link>
     );
@@ -134,9 +137,10 @@ async function HeaderAuthAction() {
 
   return (
     <Link href="/login">
-      <Button size="lg" className="gap-2">
-        <LogIn className="size-4" />
-        Masuk ke Portal
+      <Button size="default" className="gap-1.5 px-3 text-xs sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
+        <LogIn className="size-3.5 sm:size-4" />
+        <span className="sm:hidden">Masuk</span>
+        <span className="hidden sm:inline">Masuk ke Portal</span>
       </Button>
     </Link>
   );
@@ -144,26 +148,33 @@ async function HeaderAuthAction() {
 
 export default function HomePage() {
   return (
-    <div className="flex min-h-screen flex-1 flex-col bg-background text-foreground">
+    <div className="flex min-h-screen flex-1 flex-col overflow-x-clip bg-background text-foreground">
       {/* TOP NAVIGATION BAR */}
       <header className="sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur-md">
-        <div className="mx-auto flex h-18 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="transition-opacity hover:opacity-90">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-3.5 sm:h-18 sm:gap-4 sm:px-6 lg:px-8">
+          <Link href="/" className="min-w-0 shrink transition-opacity hover:opacity-90">
+            <BrandLogo
+              variant="horizontal"
+              size="sm"
+              className="sm:hidden"
+            />
             <BrandLogo
               variant="horizontal"
               size="md"
               subtitle="Portal Penagihan & SLA 6 HK"
+              className="hidden sm:inline-flex"
             />
           </Link>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
             <ThemeToggle />
             <Suspense
               fallback={
                 <Link href="/login">
-                  <Button size="default" className="gap-2">
-                    <LogIn className="size-4" />
-                    Masuk ke Portal
+                  <Button size="default" className="gap-1.5 px-3 text-xs sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
+                    <LogIn className="size-3.5 sm:size-4" />
+                    <span className="sm:hidden">Masuk</span>
+                    <span className="hidden sm:inline">Masuk ke Portal</span>
                   </Button>
                 </Link>
               }
@@ -183,9 +194,6 @@ export default function HomePage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge className="border border-teal-300/40 bg-teal-400/20 text-teal-100">
                     Platform Resmi Accelera HUB
-                  </Badge>
-                  <Badge className="border border-white/20 bg-white/10 text-slate-100">
-                    Target SLA Internal: 6 Hari Kerja
                   </Badge>
                 </div>
 
@@ -349,9 +357,130 @@ export default function HomePage() {
         </div>
       </main>
 
-      <footer className="border-t border-border bg-card/70 py-5 text-center text-xs text-muted-foreground">
-        Accelera HUB • Sistem Verifikasi, Validasi &amp; Monitoring SLA Dokumen
-        Penagihan
+      {/* PROFESSIONAL FOOTER */}
+      <footer className="mt-6 border-t border-border bg-card/85 backdrop-blur-sm">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-12">
+            {/* Brand & Deskripsi */}
+            <div className="space-y-3.5 lg:col-span-5">
+              <BrandLogo
+                variant="horizontal"
+                size="sm"
+                subtitle="Portal Penagihan & SLA 6 HK"
+              />
+              <p className="max-w-sm text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                Platform terpadu pengelolaan dokumen penagihan Mitra, verifikasi
+                berjenjang lintas divisi, pemantauan SLA 6 Hari Kerja, dan
+                penerbitan SPP digital ber-QR Code.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-teal/30 bg-brand-teal/10 px-2.5 py-1 text-[11px] font-semibold text-brand-teal">
+                  <span className="size-1.5 rounded-full bg-brand-teal" />
+                  Sistem Operasional Aktif
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                  <ShieldCheck className="size-3.5 text-brand-teal" />
+                  Akses Terenkripsi &amp; Terisolasi
+                </span>
+              </div>
+            </div>
+
+            {/* Navigasi Cepat */}
+            <div className="space-y-3 lg:col-span-3">
+              <p className="text-xs font-bold tracking-wider text-foreground uppercase">
+                Navigasi Portal
+              </p>
+              <ul className="space-y-2 text-xs text-muted-foreground sm:text-sm">
+                <li>
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center gap-1.5 transition-colors hover:text-brand-teal"
+                  >
+                    <LogIn className="size-3.5 text-brand-teal" />
+                    Masuk ke Portal Akun
+                  </Link>
+                </li>
+                <li>
+                  <a
+                    href="#alur-kerja"
+                    className="inline-flex items-center gap-1.5 transition-colors hover:text-brand-teal"
+                  >
+                    <Clock className="size-3.5 text-brand-teal" />
+                    Panduan Alur 6 Tahap
+                  </a>
+                </li>
+                <li>
+                  <Link
+                    href="/reset-password"
+                    className="inline-flex items-center gap-1.5 transition-colors hover:text-brand-teal"
+                  >
+                    <ShieldCheck className="size-3.5 text-brand-teal" />
+                    Pemulihan Kata Sandi
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Standar Layanan & Keamanan */}
+            <div className="space-y-3 lg:col-span-4">
+              <p className="text-xs font-bold tracking-wider text-foreground uppercase">
+                Standar Layanan &amp; Kepatuhan
+              </p>
+              <div className="space-y-2.5 rounded-2xl border border-border/80 bg-background/60 p-3.5 text-xs text-muted-foreground">
+                <div className="flex items-start gap-2.5">
+                  <Clock className="mt-0.5 size-4 shrink-0 text-brand-teal" />
+                  <div>
+                    <p className="font-semibold text-foreground">
+                      Jam Perhitungan SLA Hari Kerja
+                    </p>
+                    <p className="mt-0.5 leading-relaxed">
+                      Senin – Jumat (mengecualikan akhir pekan &amp; Hari Libur
+                      Nasional).
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 border-t border-border/60 pt-2.5">
+                  <QrCode className="mt-0.5 size-4 shrink-0 text-brand-teal" />
+                  <div>
+                    <p className="font-semibold text-foreground">
+                      Verifikasi Keaslian SPP Digital
+                    </p>
+                    <p className="mt-0.5 leading-relaxed">
+                      Setiap dokumen SPP dilengkapi QR Code kriptografis yang
+                      dapat dipindai untuk validasi publik.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Copyright Bar */}
+          <div className="mt-8 flex flex-col items-center justify-between gap-2 border-t border-border/80 pt-5 text-center text-xs text-muted-foreground sm:flex-row sm:text-left">
+            <p>
+              &copy; 2026{" "}
+              <span className="font-semibold text-foreground">
+                Accelera HUB
+              </span>
+              . Hak Cipta Dilindungi.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] text-muted-foreground/90">
+              <Link
+                href="/privacy"
+                className="underline-offset-4 hover:text-brand-teal hover:underline"
+              >
+                Kebijakan Privasi
+              </Link>
+              <span>•</span>
+              <Link
+                href="/terms"
+                className="underline-offset-4 hover:text-brand-teal hover:underline"
+              >
+                Ketentuan Layanan
+              </Link>
+            </div>
+          </div>
+        </div>
       </footer>
     </div>
   );

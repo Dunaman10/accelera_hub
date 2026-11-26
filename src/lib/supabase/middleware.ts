@@ -13,6 +13,52 @@ const PROTECTED_PREFIXES = [
   "/monitoring",
 ];
 
+/**
+ * Daftar rute publik yang wajib selalu dapat diakses tanpa sesi login
+ * dan bebas dari loop redirect (PWA, TWA Digital Asset Links, Legal, Verify QR, Auth).
+ */
+const ALWAYS_PUBLIC_EXACT_ROUTES = new Set([
+  "/",
+  "/login",
+  "/reset-password",
+  "/privacy",
+  "/terms",
+  "/offline",
+  "/manifest.json",
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/.well-known/assetlinks.json",
+]);
+
+function isBypassStaticOrPwaRoute(pathname: string): boolean {
+  return (
+    pathname === "/manifest.json" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
+    pathname === "/.well-known/assetlinks.json" ||
+    pathname.startsWith("/.well-known/") ||
+    pathname.startsWith("/icons/") ||
+    pathname.startsWith("/brand/") ||
+    pathname === "/offline" ||
+    pathname === "/privacy" ||
+    pathname === "/terms"
+  );
+}
+
+function isPublicRoute(pathname: string): boolean {
+  if (ALWAYS_PUBLIC_EXACT_ROUTES.has(pathname)) {
+    return true;
+  }
+  if (
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/verify/") ||
+    pathname.startsWith("/.well-known/")
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function isProtectedRoute(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
@@ -24,6 +70,17 @@ function isProtectedRoute(pathname: string): boolean {
  * dan menerapkan proteksi RBAC otomatis sesuai `profiles.role`.
  */
 export async function updateSession(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // 1. Jangan pernah memblokir file PWA, Digital Asset Links TWA, halaman Offline, atau halaman Legal Statis
+  if (isBypassStaticOrPwaRoute(pathname)) {
+    return NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
+  }
+
   let supabaseResponse = NextResponse.next({
     request: {
       headers: request.headers,
@@ -63,9 +120,7 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const { pathname } = request.nextUrl;
-
-  // Jangan intervensi route callback auth atau endpoint API
+  // 2. Jangan intervensi route callback auth atau endpoint API (API route memvalidasi auth sendiri)
   if (pathname.startsWith("/auth/callback") || pathname.startsWith("/api/")) {
     await supabase.auth.getUser();
     return supabaseResponse;
@@ -82,8 +137,9 @@ export async function updateSession(request: NextRequest) {
     return redirectResp;
   };
 
+  // 3. Jika belum login: kunci seluruh route non-publik ke /login
   if (!user) {
-    if (isProtectedRoute(pathname)) {
+    if (isProtectedRoute(pathname) || !isPublicRoute(pathname)) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
       loginUrl.searchParams.set("next", pathname);
@@ -92,7 +148,7 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Ambil data profil pengguna untuk memeriksa role dan status aktif
+  // 4. Ambil data profil pengguna untuk memeriksa role dan status aktif (profiles.is_active === true)
   const { data: profile } = await supabase
     .from("profiles")
     .select("role, is_active, vendor_id")
@@ -104,7 +160,7 @@ export async function updateSession(request: NextRequest) {
 
   if (!profile || !isActive || !role) {
     await supabase.auth.signOut();
-    if (pathname !== "/login") {
+    if (!isPublicRoute(pathname)) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
       loginUrl.searchParams.set(
@@ -122,7 +178,7 @@ export async function updateSession(request: NextRequest) {
 
   const homeRoute = getHomeRouteForRole(role);
 
-  // Bila user sudah login dan membuka halaman `/login`, arahkan otomatis ke dashboard sesuai role
+  // 5. Bila user sudah login aktif dan membuka halaman `/login`, arahkan otomatis ke dashboard sesuai role
   if (pathname === "/login") {
     const targetUrl = request.nextUrl.clone();
     targetUrl.pathname = homeRoute;
@@ -130,7 +186,7 @@ export async function updateSession(request: NextRequest) {
     return copyCookiesToRedirect(NextResponse.redirect(targetUrl));
   }
 
-  // Proteksi silang antar-role pada route dashboard
+  // 6. Proteksi silang antar-role pada route dashboard
   if (isProtectedRoute(pathname) && !isRouteAllowedForRole(pathname, role)) {
     const targetUrl = request.nextUrl.clone();
     targetUrl.pathname = homeRoute;

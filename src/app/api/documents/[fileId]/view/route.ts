@@ -1,9 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getDriveFileStream } from "@/lib/google-drive";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const DocumentParamSchema = z.object({
+  fileId: z.string().trim().min(1, "Document ID tidak valid."),
+});
 
 /**
  * GET /api/documents/[fileId]/view
@@ -22,15 +27,17 @@ export async function GET(
   context: { params: Promise<{ fileId: string }> }
 ) {
   try {
-    const { fileId: paramId } = await context.params;
-    const cleanParamId = paramId?.trim();
+    const rawParams = await context.params;
+    const parsedParams = DocumentParamSchema.safeParse(rawParams);
 
-    if (!cleanParamId) {
+    if (!parsedParams.success) {
       return NextResponse.json(
         { ok: false, error: "Document ID tidak valid." },
         { status: 400 }
       );
     }
+
+    const cleanParamId = parsedParams.data.fileId;
 
     const supabase = await createClient();
     const {

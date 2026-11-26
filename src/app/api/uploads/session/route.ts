@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
   createResumableUploadSession,
@@ -15,13 +16,30 @@ const ALLOWED_MIME_TYPES = new Set([
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
-interface UploadSessionRequestBody {
-  submission_id?: string;
-  category?: DocCategory;
-  file_name?: string;
-  mime_type?: string;
-  file_size_bytes?: number;
-}
+const UploadSessionRequestSchema = z.object({
+  submission_id: z
+    .string({ error: "Parameter submission_id wajib diisi." })
+    .trim()
+    .min(1, "Parameter submission_id wajib diisi."),
+  category: z
+    .enum(["INVOICE", "FAKTUR_PAJAK", "BAST", "PO_KONTRAK", "LAINNYA"])
+    .optional(),
+  file_name: z
+    .string({ error: "Parameter file_name wajib diisi." })
+    .trim()
+    .min(1, "Parameter file_name wajib diisi."),
+  mime_type: z
+    .string({ error: "Parameter mime_type wajib diisi." })
+    .trim()
+    .min(1, "Parameter mime_type wajib diisi."),
+  file_size_bytes: z.coerce
+    .number({ error: "Ukuran file tidak valid." })
+    .positive("Ukuran file tidak valid.")
+    .max(
+      MAX_FILE_SIZE_BYTES,
+      "Ukuran file melebihi batas maksimal 5 MB per file."
+    ),
+});
 
 /**
  * POST /api/uploads/session
@@ -43,22 +61,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = (await request.json()) as UploadSessionRequestBody;
-    const submissionId = body.submission_id?.trim() ?? "";
-    const category = body.category;
-    const fileName = body.file_name?.trim() ?? "";
-    const mimeType = body.mime_type?.trim().toLowerCase() ?? "";
-    const fileSizeBytes = Number(body.file_size_bytes ?? 0);
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, role, vendor_id, is_active")
+      .eq("id", user.id)
+      .maybeSingle();
 
-    if (!submissionId || !fileName || !mimeType) {
+    if (profileError || !profile || !profile.is_active) {
+      return NextResponse.json(
+        { ok: false, error: "Forbidden: Profil pengguna tidak aktif." },
+        { status: 403 }
+      );
+    }
+
+    const rawBody = await request.json().catch(() => null);
+    const parsed = UploadSessionRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Parameter submission_id, file_name, dan mime_type wajib diisi.",
+          error:
+            parsed.error.issues[0]?.message ??
+            "Parameter submission_id, file_name, dan mime_type wajib diisi.",
         },
         { status: 400 }
       );
     }
+
+    const body = parsed.data;
+    const submissionId = body.submission_id;
+    const category: DocCategory | undefined = body.category;
+    const fileName = body.file_name;
+    const mimeType = body.mime_type.toLowerCase();
+    const fileSizeBytes = body.file_size_bytes;
 
     if (!ALLOWED_MIME_TYPES.has(mimeType)) {
       return NextResponse.json(
@@ -66,23 +101,6 @@ export async function POST(request: NextRequest) {
           ok: false,
           error:
             "Format file tidak didukung. Hanya file .pdf, .jpg, .jpeg, dan .png yang diizinkan.",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!Number.isFinite(fileSizeBytes) || fileSizeBytes <= 0) {
-      return NextResponse.json(
-        { ok: false, error: "Ukuran file tidak valid." },
-        { status: 400 }
-      );
-    }
-
-    if (fileSizeBytes > MAX_FILE_SIZE_BYTES) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Ukuran file melebihi batas maksimal 5 MB per file.",
         },
         { status: 400 }
       );
@@ -104,6 +122,20 @@ export async function POST(request: NextRequest) {
         },
         { status: 404 }
       );
+    }
+
+    // Validasi eksplisit isolasi vendor_id untuk role mitra
+    if (profile.role === "mitra") {
+      if (!profile.vendor_id || submission.vendor_id !== profile.vendor_id) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "403 Forbidden: Anda tidak berhak mengunggah dokumen pada pengajuan milik perusahaan Mitra lain.",
+          },
+          { status: 403 }
+        );
+      }
     }
 
     let folderId = submission.drive_folder_id;

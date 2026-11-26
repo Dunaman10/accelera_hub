@@ -389,9 +389,6 @@ function DashboardShellInner({
     [pathname, profile.role, dynamicLabel]
   );
 
-  // Tampilkan maksimal 4 item utama pada Bottom Navigation Mobile
-  const bottomNavItems = React.useMemo(() => navItems.slice(0, 4), [navItems]);
-
   function isNavItemActive(item: NavItem): boolean {
     if (item.exact) {
       return pathname === item.href;
@@ -720,7 +717,7 @@ function DashboardShellInner({
         )}
 
         {/* PAGE CONTENT */}
-        <main className="flex-1 p-4 pb-24 sm:p-6 lg:p-8 lg:pb-10">
+        <main className="flex-1 p-4 pb-10 sm:p-6 lg:p-8 lg:pb-10">
           <div
             className={cn(
               "mx-auto w-full",
@@ -739,48 +736,6 @@ function DashboardShellInner({
             {children}
           </div>
         </main>
-
-        {/* MOBILE BOTTOM NAVIGATION */}
-        <nav className="fixed right-0 bottom-0 left-0 z-30 flex h-17 items-center justify-around border-t border-border bg-card/95 px-2 backdrop-blur-md lg:hidden">
-          {bottomNavItems.map((item) => {
-            const Icon = item.icon;
-            const active = isNavItemActive(item);
-            const badgeCount = queueCounts[item.href] ?? 0;
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "relative flex flex-1 flex-col items-center justify-center gap-1 py-1.5 text-xs font-medium transition-colors",
-                  active
-                    ? "text-primary font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <div className="relative">
-                  <Icon className={cn("size-4.5", active && "stroke-[2.4]")} />
-                  {badgeCount > 0 && (
-                    <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-teal px-1 text-[10px] font-bold text-brand-teal-foreground tabular-nums">
-                      {badgeCount}
-                    </span>
-                  )}
-                </div>
-                <span className="max-w-[86px] truncate">{item.label}</span>
-              </Link>
-            );
-          })}
-          {navItems.length > 4 && (
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              className="flex flex-1 flex-col items-center justify-center gap-1 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              <Menu className="size-4.5" />
-              <span>Lainnya</span>
-            </button>
-          )}
-        </nav>
       </div>
     </div>
   );

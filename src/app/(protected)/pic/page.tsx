@@ -189,8 +189,8 @@ async function PicUsahaContent() {
       {/* TABEL UTAMA: ANTREAN APPROVAL PIC USAHA */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ShieldCheck className="size-4 text-primary" />
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+            <ShieldCheck className="size-4 shrink-0 text-primary" />
             <span>Antrean Aktif Approval PIC Usaha</span>
             <Badge variant="secondary" className="font-mono">
               {activeQueue.length} pengajuan

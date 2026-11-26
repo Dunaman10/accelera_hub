@@ -640,7 +640,7 @@ async function MitraSubmissionDetailContent({
                   <ShieldCheck className="size-4" />
                   <span>SPP Terbit: {sppDoc.spp_no}</span>
                 </div>
-                <p className="font-mono text-[11px] text-muted-foreground">
+                <p className="font-mono text-[11px] break-all text-muted-foreground">
                   Token QR: {sppDoc.qr_verification_hash}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -657,8 +657,7 @@ async function MitraSubmissionDetailContent({
                   </Link>
                   <a
                     href={`/api/submissions/${submission.id}/pdf?type=spp&download=1`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    download
                   >
                     <Button variant="outline" size="xs" className="gap-1">
                       Unduh PDF SPP
@@ -746,47 +745,38 @@ async function MitraSubmissionDetailContent({
 
           {/* RIWAYAT TRANSISI TAHAP (STAGE LOGS) */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm">
                 <History className="size-4 text-primary" />
-                Log Riwayat Tahapan &amp; SLA ({(stageLogs ?? []).length})
+                Log Riwayat ({(stageLogs ?? []).length})
               </CardTitle>
-              <CardDescription>
-                Jejak audit perpindahan tahap dan pencatatan hari kerja SLA
-              </CardDescription>
             </CardHeader>
             <CardContent>
               {!stageLogs || stageLogs.length === 0 ? (
-                <p className="py-4 text-center text-xs text-muted-foreground">
+                <p className="py-3 text-center text-xs text-muted-foreground">
                   Belum ada catatan riwayat tahapan.
                 </p>
               ) : (
-                <div className="space-y-3">
+                <div className="max-h-[240px] space-y-1.5 overflow-y-auto pr-1">
                   {stageLogs.map((log) => (
                     <div
                       key={log.id}
-                      className="rounded-xl border bg-muted/20 p-3 text-xs"
+                      title={log.notes ?? undefined}
+                      className="flex items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs"
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">
-                            {STAGE_LABELS[log.to_stage]}
-                          </Badge>
-                          {log.decision && (
-                            <span className="font-semibold">
-                              {log.decision}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[11px] text-muted-foreground">
-                          {formatDateTimeWIB(log.entered_at)}
-                        </span>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Badge variant="outline" className="shrink-0 text-[11px]">
+                          {STAGE_LABELS[log.to_stage]}
+                        </Badge>
+                        {log.decision && (
+                          <span className="truncate font-medium text-foreground">
+                            {log.decision}
+                          </span>
+                        )}
                       </div>
-                      {log.notes && (
-                        <p className="mt-1.5 text-muted-foreground">
-                          {log.notes}
-                        </p>
-                      )}
+                      <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                        {formatDateTimeWIB(log.entered_at)}
+                      </span>
                     </div>
                   ))}
                 </div>

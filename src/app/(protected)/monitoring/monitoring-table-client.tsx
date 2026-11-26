@@ -585,7 +585,9 @@ export function MonitoringTableClient({
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 10_000);
 
       toast.success(
         `File Excel (.xlsx) (${filteredRows.length} baris + sheet Panduan) berhasil diunduh.`

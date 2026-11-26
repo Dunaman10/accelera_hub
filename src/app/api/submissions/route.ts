@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { ensureSubmissionDriveFolder } from "@/lib/google-drive";
 import { SLA_TOTAL_TARGET_DAYS } from "@/lib/sla";
@@ -12,14 +13,23 @@ import type { BillingSubmission } from "@/types";
 const DUPLICATE_INVOICE_MESSAGE =
   "Nomor invoice ini sudah pernah diajukan oleh perusahaan Anda.";
 
-interface CreateSubmissionBody {
-  invoice_no?: string;
-  work_type?: string;
-  contract_po_no?: string | null;
-  amount?: number;
-  notes?: string | null;
-  vendor_id?: string | null;
-}
+const CreateSubmissionSchema = z.object({
+  invoice_no: z
+    .string({ error: "Nomor Invoice wajib diisi." })
+    .trim()
+    .min(1, "Nomor Invoice wajib diisi."),
+  work_type: z
+    .string({ error: "Jenis Pekerjaan / Tagihan wajib diisi." })
+    .trim()
+    .min(1, "Jenis Pekerjaan / Tagihan wajib diisi."),
+  contract_po_no: z.string().trim().nullable().optional(),
+  amount: z.coerce
+    .number({ error: "Nilai Tagihan (Rp) harus berupa angka valid." })
+    .finite("Nilai Tagihan (Rp) harus berupa angka valid.")
+    .positive("Nilai Tagihan (Rp) harus lebih besar dari Rp 0."),
+  notes: z.string().trim().nullable().optional(),
+  vendor_id: z.string().trim().nullable().optional(),
+});
 
 /**
  * POST /api/submissions
@@ -64,43 +74,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = (await request.json()) as CreateSubmissionBody;
-    const invoiceNo = body.invoice_no?.trim() ?? "";
-    const normalizedInvoiceNo = invoiceNo.toLowerCase();
-    const workType = body.work_type?.trim() ?? "";
-    const contractPoNo = body.contract_po_no?.trim() || null;
-    const amount = Number(body.amount ?? 0);
-    const notes = body.notes?.trim() || null;
-
-    if (!invoiceNo) {
-      return NextResponse.json(
-        { ok: false, error: "Nomor Invoice wajib diisi." },
-        { status: 400 }
-      );
-    }
-
-    if (!workType) {
-      return NextResponse.json(
-        { ok: false, error: "Jenis Pekerjaan / Tagihan wajib diisi." },
-        { status: 400 }
-      );
-    }
-
-    if (!Number.isFinite(amount) || amount <= 0) {
+    const rawBody = await request.json().catch(() => null);
+    const parsed = CreateSubmissionSchema.safeParse(rawBody);
+    if (!parsed.success) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Nilai Tagihan (Rp) harus lebih besar dari Rp 0.",
+          error:
+            parsed.error.issues[0]?.message ??
+            "Payload pengajuan tagihan tidak valid.",
         },
         { status: 400 }
       );
+    }
+
+    const body = parsed.data;
+    const invoiceNo = body.invoice_no;
+    const normalizedInvoiceNo = invoiceNo.toLowerCase();
+    const workType = body.work_type;
+    const contractPoNo = body.contract_po_no || null;
+    const amount = body.amount;
+    const notes = body.notes || null;
+
+    // Isolasi ketat Mitra: Mitra hanya boleh mengajukan untuk vendor_id miliknya sendiri
+    if (profile.role === "mitra") {
+      if (
+        body.vendor_id &&
+        profile.vendor_id &&
+        body.vendor_id !== profile.vendor_id
+      ) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "403 Forbidden: Anda tidak berhak membuat pengajuan untuk perusahaan Mitra lain.",
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // Tentukan vendor_id sesuai role
     const targetVendorId =
       profile.role === "mitra"
         ? profile.vendor_id
-        : body.vendor_id?.trim() || profile.vendor_id;
+        : body.vendor_id || profile.vendor_id;
 
     if (!targetVendorId) {
       return NextResponse.json(

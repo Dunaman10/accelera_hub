@@ -276,9 +276,9 @@ export function AdminQueueClient({
       <Card>
         <CardHeader className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <FileSearch className="size-4 text-brand-teal" />
+            <div className="min-w-0">
+              <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+                <FileSearch className="size-4 shrink-0 text-brand-teal" />
                 <span>{activeTabMeta.label}</span>
                 <Badge variant="secondary" className="font-mono">
                   {filteredRows.length} item
@@ -293,7 +293,7 @@ export function AdminQueueClient({
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="relative w-full xl:w-68">
               <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -306,7 +306,7 @@ export function AdminQueueClient({
             </div>
 
             {/* Segmented Control Bar 1 Baris Rapi */}
-            <div className="flex w-full items-center gap-1 overflow-x-auto rounded-xl border border-border/80 bg-surface-subtle/80 p-1 xl:w-auto">
+            <div className="flex w-full max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-border/80 bg-surface-subtle/80 p-1 xl:w-auto">
               {ADMIN_QUEUE_TABS.map((tab) => {
                 const isSelected = activeTab === tab.key;
                 const count = tabCounts[tab.key];

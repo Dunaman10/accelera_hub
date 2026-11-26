@@ -151,6 +151,24 @@
   }
   html {
     @apply font-sans scroll-smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--brand-teal) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--brand-teal) 55%, transparent);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--brand-teal);
   }
   body {
     @apply bg-background text-foreground font-sans text-sm leading-relaxed antialiased selection:bg-brand-teal/20 selection:text-foreground;

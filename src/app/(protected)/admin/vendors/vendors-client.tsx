@@ -100,9 +100,12 @@ export function VendorsClient({
   const [confirmDeleteVendor, setConfirmDeleteVendor] =
     React.useState<Vendor | null>(null);
 
-  React.useEffect(() => {
+  const [prevInitialVendors, setPrevInitialVendors] =
+    React.useState<Vendor[]>(initialVendors);
+  if (initialVendors !== prevInitialVendors) {
+    setPrevInitialVendors(initialVendors);
     setVendors(initialVendors);
-  }, [initialVendors]);
+  }
 
   const filteredVendors = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase();

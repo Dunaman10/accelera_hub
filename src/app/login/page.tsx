@@ -53,6 +53,15 @@ function LoginForm04() {
   const [otpCode, setOtpCode] = React.useState("");
   const [otpStep, setOtpStep] = React.useState<"request" | "verify">("request");
   const [loadingOtp, setLoadingOtp] = React.useState(false);
+  const [otpCooldown, setOtpCooldown] = React.useState(0);
+
+  React.useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setOtpCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [otpCooldown]);
 
   // State Reset Password Request
   const [showForgotBox, setShowForgotBox] = React.useState(false);
@@ -169,7 +178,16 @@ function LoginForm04() {
             },
           });
           if (error) {
-            toast.error(error.message);
+            const matchSec = error.message.match(/after\s+(\d+)\s+seconds/i);
+            if (matchSec) {
+              const sec = Number(matchSec[1]);
+              setOtpCooldown(sec);
+              toast.error(
+                `Demi keamanan, mohon tunggu ${sec} detik sebelum meminta kode OTP kembali.`
+              );
+            } else {
+              toast.error(error.message);
+            }
             return;
           }
         } else {
@@ -178,6 +196,7 @@ function LoginForm04() {
         }
       }
 
+      setOtpCooldown(60);
       setOtpStep("verify");
       toast.success(
         "Kode OTP 6 digit & tautan Magic Link telah dikirim ke email Anda."
@@ -265,7 +284,7 @@ function LoginForm04() {
       <Card className="overflow-hidden border-border/80 p-0 shadow-xl">
         <CardContent className="grid p-0 md:min-h-[550px] md:grid-cols-2">
           {/* KOLOM KIRI: FORM LOGIN (SHADCN LOGIN-04) */}
-          <div className="flex flex-col justify-center px-6 py-10 md:px-10 md:py-14">
+          <div className="flex flex-col justify-center px-5 py-8 sm:px-6 sm:py-10 md:px-10 md:py-14">
             <div className="flex flex-col gap-7">
               {/* Mobile Logo (hanya tampil di layar kecil saat panel kanan tersembunyi) */}
               <div className="flex justify-center md:hidden">
@@ -375,13 +394,15 @@ function LoginForm04() {
                     type="submit"
                     size="lg"
                     className="w-full"
-                    disabled={loadingOtp}
+                    disabled={loadingOtp || otpCooldown > 0}
                   >
                     {loadingOtp ? (
                       <>
                         <Loader2 className="size-4 animate-spin" />
                         Mengirim Kode OTP...
                       </>
+                    ) : otpCooldown > 0 ? (
+                      `Tunggu ${otpCooldown} detik untuk kirim ulang`
                     ) : (
                       "Kirim Kode OTP & Magic Link"
                     )}
@@ -444,10 +465,12 @@ function LoginForm04() {
                     <button
                       type="button"
                       onClick={handleSendOtpOrMagicLink}
-                      disabled={loadingOtp}
-                      className="cursor-pointer font-semibold text-brand-teal hover:underline"
+                      disabled={loadingOtp || otpCooldown > 0}
+                      className="cursor-pointer font-semibold text-brand-teal hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
                     >
-                      Kirim ulang kode
+                      {otpCooldown > 0
+                        ? `Kirim ulang (${otpCooldown}d)`
+                        : "Kirim ulang kode"}
                     </button>
                   </div>
                 </form>
@@ -572,10 +595,16 @@ function LoginForm04() {
         </CardContent>
       </Card>
 
-      <div className="text-center text-xs text-balance text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-primary">
-        Akses khusus pengguna terdaftar (<em>Invite-Only</em>). Lupa akses akun?{" "}
-        <Link href="/reset-password">Atur ulang password</Link> atau hubungi
-        Admin Accelera.
+      <div className="space-y-1.5 text-center text-xs text-balance text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-primary">
+        <p>
+          Akses khusus pengguna terdaftar (<em>Invite-Only</em>). Lupa akses
+          akun? <Link href="/reset-password">Atur ulang password</Link> atau
+          hubungi Admin Accelera.
+        </p>
+        <p className="text-[11px]">
+          <Link href="/privacy">Kebijakan Privasi</Link> •{" "}
+          <Link href="/terms">Ketentuan Layanan</Link>
+        </p>
       </div>
     </div>
   );
@@ -583,9 +612,9 @@ function LoginForm04() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-svh flex-col bg-muted/60 dark:bg-background">
+    <div className="flex min-h-svh flex-col overflow-x-clip bg-muted/60 dark:bg-background">
       {/* Top Bar Ringkas */}
-      <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 pt-5">
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-4 pt-5 sm:px-6">
         <Link
           href="/"
           className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -597,7 +626,7 @@ export default function LoginPage() {
       </div>
 
       {/* Center Container mengikuti struktur shadcn login-04 */}
-      <main className="flex flex-1 flex-col items-center justify-center p-6 md:p-10">
+      <main className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6 md:p-10">
         <div className="w-full max-w-sm md:max-w-3xl">
           <Suspense
             fallback={

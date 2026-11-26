@@ -14,6 +14,11 @@ export interface NotificationDispatchResult {
   error?: string;
 }
 
+export function isResendConfigured(): boolean {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  return Boolean(apiKey && apiKey !== "re_your_resend_api_key");
+}
+
 /**
  * Mengirim email transaksional melalui Resend REST API murni via `fetch()`
  * (Kompatibel Edge/Cloudflare Workers, tanpa SDK berat).
@@ -26,7 +31,7 @@ export async function sendResendEmail({
   text,
 }: SendResendEmailParams): Promise<NotificationDispatchResult> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!apiKey || apiKey === "re_your_resend_api_key") {
+  if (!isResendConfigured() || !apiKey) {
     return {
       sent: false,
       skippedReason: "RESEND_API_KEY belum dikonfigurasi (graceful fallback).",

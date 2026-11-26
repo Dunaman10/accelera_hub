@@ -1,5 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+
+const PatchNotificationSchema = z.object({
+  id: z.string().trim().min(1).optional(),
+  markAll: z.boolean().optional(),
+});
 
 /**
  * GET /api/notifications
@@ -77,10 +83,21 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const body = (await request.json()) as {
-      id?: string;
-      markAll?: boolean;
-    };
+    const rawBody = await request.json().catch(() => null);
+    const parsed = PatchNotificationSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ??
+            "Parameter id atau markAll tidak valid.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const body = parsed.data;
 
     if (body.markAll) {
       const { error } = await supabase

@@ -11,7 +11,6 @@ import {
   Clock,
   Download,
   FileSpreadsheet,
-  FileText,
   History,
   Info,
   Loader2,
@@ -22,7 +21,6 @@ import {
 import { toast } from "sonner";
 import type {
   BillingSubmission,
-  DocCategory,
   StageLog,
   SubmissionDocument,
   Vendor,
@@ -30,7 +28,6 @@ import type {
 import type { AkuntansiRejectTarget } from "@/app/api/submissions/[id]/transition/route";
 import type { StageSlaIndicator } from "@/lib/sla";
 import {
-  DOC_CATEGORY_LABELS,
   formatDateTimeWIB,
   formatRupiah,
   getFinalStatusBadgeClass,
@@ -73,13 +70,6 @@ interface AkuntansiSubmissionInspectClientProps {
   stageLogs: StageLog[];
   stageSla: StageSlaIndicator;
 }
-
-const PRIORITY_CATEGORIES: DocCategory[] = [
-  "INVOICE",
-  "FAKTUR_PAJAK",
-  "PO_KONTRAK",
-  "BAST",
-];
 
 interface AccountingChecklistState {
   nominalMatch: boolean;
@@ -129,9 +119,13 @@ export function AkuntansiSubmissionInspectClient({
     }
   );
 
-  React.useEffect(() => {
+  const [prevFindings, setPrevFindings] = React.useState<string | null>(
+    submission.findings
+  );
+  if (submission.findings !== prevFindings) {
+    setPrevFindings(submission.findings);
     setNotes(submission.findings ?? "");
-  }, [submission.findings]);
+  }
 
   const stage = submission.current_stage;
   const isActionable = stage === "ACCOUNTING_APPROVAL";
@@ -143,19 +137,6 @@ export function AkuntansiSubmissionInspectClient({
     checklist.dppPpnPphMatch &&
     checklist.fakturPajakValid &&
     checklist.poKontrakMatch;
-
-  function focusCategoryDoc(cat: DocCategory) {
-    const target =
-      documents.find((d) => d.category === cat && d.is_latest) ??
-      documents.find((d) => d.category === cat);
-    if (target) {
-      setSelectedDocId(target.id);
-    } else {
-      toast.info(
-        `Tidak ada dokumen kategori ${DOC_CATEGORY_LABELS[cat]} pada pengajuan ini.`
-      );
-    }
-  }
 
   function requestAkuntansiDecision(
     action: "akuntansi_approve" | "akuntansi_reject"
@@ -297,119 +278,95 @@ export function AkuntansiSubmissionInspectClient({
           },
         ]}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="outline"
-              className={getFinalStatusBadgeClass(submission.final_status)}
-            >
-              {submission.final_status}
-            </Badge>
-            <Badge
-              variant="outline"
-              className={getSlaStatusBadgeClass(submission.sla_status)}
-            >
-              Total SLA: {submission.actual_working_days}/
-              {submission.sla_target_days} HK ({submission.sla_status})
-            </Badge>
-            {isActionable && (
+          <div className="flex flex-col gap-2.5 lg:items-end">
+            {/* Baris 1: Status & SLA Badges */}
+            <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
               <Badge
                 variant="outline"
-                className={cn(
-                  "gap-1",
-                  stageSla.isOverdue
-                    ? "border-destructive/40 bg-destructive/15 text-destructive"
-                    : "border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
-                )}
+                className={getFinalStatusBadgeClass(submission.final_status)}
               >
-                <Clock className="size-3.5" />
-                SLA Akuntansi: {stageSla.label}
+                {submission.final_status}
               </Badge>
-            )}
-            {paused && (
               <Badge
                 variant="outline"
-                className="gap-1 border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                className={getSlaStatusBadgeClass(submission.sla_status)}
               >
-                <PauseCircle className="size-3.5" />
-                SLA Di-PAUSE
+                Total SLA: {submission.actual_working_days}/
+                {submission.sla_target_days} HK ({submission.sla_status})
               </Badge>
-            )}
-            <a
-              href={`/api/submissions/${submission.id}/pdf?type=checksheet&download=1`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button variant="outline" size="default" className="gap-1.5 text-xs">
-                <Download className="size-4 text-brand-teal" />
-                Unduh PDF Lembar Hasil Cek
-              </Button>
-            </a>
-            {stage === "SPP_PROCESSING" && (
-              <Link href="/spp">
-                <Button size="default" className="gap-1.5 text-xs">
-                  <QrCode className="size-4" />
-                  Buka Meja Penerbitan SPP
-                </Button>
-              </Link>
-            )}
-            {vendor && (
-              <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-subtle/80 px-3.5 py-2 text-xs">
-                <Building2 className="size-4 text-brand-teal" />
-                <div>
-                  <p className="font-semibold text-foreground">{vendor.name}</p>
-                  <p className="text-muted-foreground">
-                    NPWP: {vendor.npwp || "-"}
-                  </p>
+              {isActionable && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "gap-1",
+                    stageSla.isOverdue
+                      ? "border-destructive/40 bg-destructive/15 text-destructive"
+                      : "border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
+                  )}
+                >
+                  <Clock className="size-3.5" />
+                  SLA Akuntansi: {stageSla.label}
+                </Badge>
+              )}
+              {paused && (
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                >
+                  <PauseCircle className="size-3.5" />
+                  SLA Di-PAUSE
+                </Badge>
+              )}
+            </div>
+
+            {/* Baris 2: Info Vendor & Tombol Aksi */}
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              {vendor && (
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-subtle/80 px-3 py-1.5 text-xs">
+                  <Building2 className="size-4 shrink-0 text-brand-teal" />
+                  <div>
+                    <p className="font-semibold text-foreground">{vendor.name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      NPWP: {vendor.npwp || "-"}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+              <a
+                href={`/api/submissions/${submission.id}/pdf?type=checksheet&download=1`}
+                download
+              >
+                <Button variant="outline" size="default" className="gap-1.5 text-xs">
+                  <Download className="size-4 text-brand-teal" />
+                  Unduh PDF Lembar Hasil Cek
+                </Button>
+              </a>
+              {stage === "SPP_PROCESSING" && (
+                <Link href="/spp">
+                  <Button size="default" className="gap-1.5 text-xs">
+                    <QrCode className="size-4" />
+                    Buka Meja Penerbitan SPP
+                  </Button>
+                </Link>
+              )}
+            </div>
           </div>
         }
       />
 
       {/* SPLIT-SCREEN DESKTOP 2 KOLOM */}
-      <div className="flex flex-col gap-5 lg:h-[calc(100vh-12rem)] lg:flex-row lg:items-stretch lg:overflow-hidden">
-        {/* KOLOM KIRI (55%): DOCUMENT VIEWER (FOKUS INVOICE, FAKTUR PAJAK, PO/KONTRAK, BAST) */}
-        <div className="w-full space-y-2.5 lg:flex lg:h-full lg:w-[55%] lg:flex-col">
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border bg-background px-3 py-2 text-xs">
-            <span className="font-semibold text-muted-foreground">
-              Fokus Dokumen Pajak &amp; Keuangan:
-            </span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {PRIORITY_CATEGORIES.map((cat) => {
-                const doc = documents.find(
-                  (d) => d.category === cat && d.is_latest
-                );
-                const isSelected = Boolean(doc && doc.id === selectedDocId);
-                return (
-                  <Button
-                    key={cat}
-                    type="button"
-                    size="xs"
-                    variant={isSelected ? "default" : "outline"}
-                    onClick={() => focusCategoryDoc(cat)}
-                    disabled={!doc}
-                    className="gap-1"
-                  >
-                    <FileText className="size-3" />
-                    {DOC_CATEGORY_LABELS[cat]}
-                    {doc ? ` (v${doc.version})` : " (Kosong)"}
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+        {/* KOLOM KIRI (55%): DOCUMENT VIEWER */}
+        <div className="w-full lg:sticky lg:top-6 lg:w-[55%]">
           <DocumentViewer
             documents={documents}
             selectedDocumentId={selectedDocId}
             onSelectDocument={(doc) => setSelectedDocId(doc.id)}
-            className="lg:min-h-0 lg:flex-1"
           />
         </div>
 
-        {/* KOLOM KANAN (45%): PANEL CHECKLIST VALIDASI AKUNTANSI & PAJAK (SCROLL INDEPENDEN) */}
-        <div className="w-full space-y-5 lg:h-full lg:w-[45%] lg:overflow-y-auto lg:pr-1">
+        {/* KOLOM KANAN (45%): PANEL CHECKLIST VALIDASI AKUNTANSI & PAJAK */}
+        <div className="w-full space-y-5 lg:w-[45%]">
           {/* 1. PANEL CHECKLIST VALIDASI AKUNTANSI & PAJAK */}
           <Card className="border-brand-teal/35 shadow-xs">
             <CardHeader className="border-b border-border bg-brand-teal/8">

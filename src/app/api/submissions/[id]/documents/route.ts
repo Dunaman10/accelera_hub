@@ -1,22 +1,25 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import type { DocCategory } from "@/types";
 
-const VALID_CATEGORIES = new Set<DocCategory>([
-  "INVOICE",
-  "FAKTUR_PAJAK",
-  "BAST",
-  "PO_KONTRAK",
-  "LAINNYA",
-]);
-
-interface SaveDocumentBody {
-  category?: DocCategory;
-  file_name?: string;
-  mime_type?: string;
-  file_size_bytes?: number;
-  drive_file_id?: string;
-}
+const SaveDocumentSchema = z.object({
+  category: z.enum(
+    ["INVOICE", "FAKTUR_PAJAK", "BAST", "PO_KONTRAK", "LAINNYA"],
+    { error: "Kategori dokumen tidak valid." }
+  ),
+  file_name: z
+    .string({ error: "file_name wajib disertakan." })
+    .trim()
+    .min(1, "file_name wajib disertakan."),
+  mime_type: z.string().trim().min(1).default("application/octet-stream"),
+  file_size_bytes: z.coerce.number().min(0).default(0),
+  drive_file_id: z
+    .string({ error: "drive_file_id wajib disertakan." })
+    .trim()
+    .min(1, "drive_file_id wajib disertakan."),
+  replace_latest: z.boolean().optional(),
+});
 
 /**
  * POST /api/submissions/[id]/documents
@@ -43,29 +46,39 @@ export async function POST(
       );
     }
 
-    const body = (await request.json()) as SaveDocumentBody;
-    const category = body.category;
-    const fileName = body.file_name?.trim() ?? "";
-    const mimeType = body.mime_type?.trim() ?? "application/octet-stream";
-    const fileSizeBytes = Number(body.file_size_bytes ?? 0);
-    const driveFileId = body.drive_file_id?.trim() ?? "";
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, role, vendor_id, is_active")
+      .eq("id", user.id)
+      .maybeSingle();
 
-    if (!category || !VALID_CATEGORIES.has(category)) {
+    if (profileError || !profile || !profile.is_active) {
       return NextResponse.json(
-        { ok: false, error: "Kategori dokumen tidak valid." },
-        { status: 400 }
+        { ok: false, error: "Forbidden: Profil pengguna tidak aktif." },
+        { status: 403 }
       );
     }
 
-    if (!fileName || !driveFileId) {
+    const rawBody = await request.json().catch(() => null);
+    const parsed = SaveDocumentSchema.safeParse(rawBody);
+    if (!parsed.success) {
       return NextResponse.json(
         {
           ok: false,
-          error: "file_name dan drive_file_id wajib disertakan.",
+          error:
+            parsed.error.issues[0]?.message ??
+            "Payload metadata dokumen tidak valid.",
         },
         { status: 400 }
       );
     }
+
+    const body = parsed.data;
+    const category: DocCategory = body.category;
+    const fileName = body.file_name;
+    const mimeType = body.mime_type;
+    const fileSizeBytes = body.file_size_bytes;
+    const driveFileId = body.drive_file_id;
 
     // Verifikasi kepemilikan submission lewat query RLS
     const { data: submission, error: subError } = await supabase
@@ -83,6 +96,20 @@ export async function POST(
         },
         { status: 404 }
       );
+    }
+
+    // Validasi eksplisit isolasi vendor_id untuk role mitra
+    if (profile.role === "mitra") {
+      if (!profile.vendor_id || submission.vendor_id !== profile.vendor_id) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "403 Forbidden: Anda tidak berhak mengunggah dokumen ke pengajuan milik perusahaan Mitra lain.",
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // Validasi bahwa pengajuan masih dalam tahap awal atau tahap revisi / menunggu mitra

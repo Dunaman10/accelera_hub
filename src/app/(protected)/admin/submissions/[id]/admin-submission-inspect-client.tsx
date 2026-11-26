@@ -132,7 +132,10 @@ export function AdminSubmissionInspectClient({
     );
 
   // Sinkronisasi state saat props submission berubah setelah router.refresh()
-  React.useEffect(() => {
+  const [prevSubmissionRef, setPrevSubmissionRef] =
+    React.useState<BillingSubmission>(submission);
+  if (submission !== prevSubmissionRef) {
+    setPrevSubmissionRef(submission);
     setFindingNotes(submission.findings ?? "");
     if (submission.hardcopy_date) {
       setHardcopyReceivedAt(
@@ -145,7 +148,7 @@ export function AdminSubmissionInspectClient({
     if (submission.verification_status !== "Belum Diperiksa") {
       setVerificationStatus(submission.verification_status);
     }
-  }, [submission]);
+  }
 
   const stage = submission.current_stage;
   const paused =
@@ -343,69 +346,76 @@ export function AdminSubmissionInspectClient({
           },
         ]}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="outline"
-              className={getFinalStatusBadgeClass(submission.final_status)}
-            >
-              {submission.final_status}
-            </Badge>
-            <Badge
-              variant="outline"
-              className={getSlaStatusBadgeClass(submission.sla_status)}
-            >
-              SLA: {submission.actual_working_days}/{submission.sla_target_days}{" "}
-              HK ({submission.sla_status})
-            </Badge>
-            {paused ? (
+          <div className="flex flex-col gap-2.5 lg:items-end">
+            {/* Baris 1: Status & SLA Badges */}
+            <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
               <Badge
                 variant="outline"
-                className="gap-1 border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                className={getFinalStatusBadgeClass(submission.final_status)}
               >
-                <PauseCircle className="size-3.5" />
-                Timer SLA Di-PAUSE
+                {submission.final_status}
               </Badge>
-            ) : (
               <Badge
                 variant="outline"
-                className="gap-1 border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
+                className={getSlaStatusBadgeClass(submission.sla_status)}
               >
-                <Clock className="size-3.5" />
-                Timer SLA Aktif
+                SLA: {submission.actual_working_days}/
+                {submission.sla_target_days} HK ({submission.sla_status})
               </Badge>
-            )}
-            {vendor && (
-              <>
-                <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface-subtle/80 px-3.5 py-2 text-xs">
-                  <Building2 className="size-4 text-brand-teal" />
-                  <div>
-                    <p className="font-semibold text-foreground">
-                      {vendor.name}
-                    </p>
-                    <p className="text-muted-foreground">
-                      NPWP: {vendor.npwp || "-"} • PIC: {vendor.pic_name || "-"}
-                      {vendor.whatsapp_number
-                        ? ` (${vendor.whatsapp_number})`
-                        : ""}
-                    </p>
-                  </div>
-                </div>
-
-                <a
-                  href={buildWhatsappFollowupUrl({
-                    submission,
-                    vendor,
-                    customFindings: findingNotes,
-                  })}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#25D366] px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-[#1ebe5d]"
+              {paused ? (
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-300"
                 >
-                  <MessageCircle className="size-4" />
-                  Hubungi Mitra via WA
-                </a>
-              </>
-            )}
+                  <PauseCircle className="size-3.5" />
+                  Timer SLA Di-PAUSE
+                </Badge>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
+                >
+                  <Clock className="size-3.5" />
+                  Timer SLA Aktif
+                </Badge>
+              )}
+            </div>
+
+            {/* Baris 2: Info Vendor & Tombol Aksi */}
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              {vendor && (
+                <>
+                  <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-subtle/80 px-3 py-1.5 text-xs">
+                    <Building2 className="size-4 shrink-0 text-brand-teal" />
+                    <div>
+                      <p className="font-semibold text-foreground">
+                        {vendor.name}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        NPWP: {vendor.npwp || "-"} • PIC:{" "}
+                        {vendor.pic_name || "-"}
+                        {vendor.whatsapp_number
+                          ? ` (${vendor.whatsapp_number})`
+                          : ""}
+                      </p>
+                    </div>
+                  </div>
+
+                  <a
+                    href={buildWhatsappFollowupUrl({
+                      submission,
+                      vendor,
+                      customFindings: findingNotes,
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-emerald-600"
+                  >
+                    <MessageCircle className="size-4" />
+                    Hubungi Mitra via WA
+                  </a>
+                </>
+              )}
 
             {canCancelSubmission && (
               <Button
@@ -423,6 +433,7 @@ export function AdminSubmissionInspectClient({
                 Batalkan Pengajuan
               </Button>
             )}
+            </div>
           </div>
         }
       />
@@ -433,14 +444,14 @@ export function AdminSubmissionInspectClient({
           - Kanan 45%: Detail tagihan + Panel Aksi Keputusan State Machine
           - Mobile: Otomatis menumpuk vertikal
       ====================================================================== */}
-      <div className="flex flex-col gap-5 lg:h-[calc(100vh-12rem)] lg:flex-row lg:items-stretch lg:overflow-hidden">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         {/* KOLOM KIRI (55%): PRIVATE DOCUMENT VIEWER */}
-        <div className="w-full lg:flex lg:h-full lg:w-[55%] lg:flex-col">
-          <DocumentViewer documents={documents} className="lg:h-full" />
+        <div className="w-full lg:sticky lg:top-6 lg:w-[55%]">
+          <DocumentViewer documents={documents} />
         </div>
 
-        {/* KOLOM KANAN (45%): DETAIL TAGIHAN & PANEL KEPUTUSAN (SCROLL INDEPENDEN) */}
-        <div className="w-full space-y-5 lg:h-full lg:w-[45%] lg:overflow-y-auto lg:pr-1">
+        {/* KOLOM KANAN (45%): DETAIL TAGIHAN & PANEL KEPUTUSAN */}
+        <div className="w-full space-y-5 lg:w-[45%]">
           {/* 1. PANEL AKSI KEPUTUSAN SESUAI TAHAP AKTIF */}
           <Card className="border-brand-teal/35 shadow-xs">
             <CardHeader className="border-b border-border bg-brand-teal/8">
@@ -648,7 +659,7 @@ export function AdminSubmissionInspectClient({
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label htmlFor="select-physical-status">
-                        Kelengkapan Fisik (hardcopy_status){" "}
+                        Kelengkapan Fisik{" "}
                         <span className="text-destructive">*</span>
                       </Label>
                       <select
@@ -669,7 +680,7 @@ export function AdminSubmissionInspectClient({
 
                     <div className="space-y-1.5">
                       <Label htmlFor="select-verification-status">
-                        Status Verifikasi (verification_status){" "}
+                        Status Verifikasi{" "}
                         <span className="text-destructive">*</span>
                       </Label>
                       <select

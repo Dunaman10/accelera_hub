@@ -51,12 +51,15 @@ import {
 } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 
-const ALLOWED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
+const ALLOWED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"];
 const ALLOWED_MIMES = new Set([
   "application/pdf",
   "image/jpeg",
   "image/jpg",
   "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
 ]);
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -99,10 +102,12 @@ export function MitraRevisionPanel({
     const rawFile = fileList[0];
 
     const lowerName = rawFile.name.toLowerCase();
+    const lowerMime = rawFile.type.toLowerCase();
     const hasValidExt = ALLOWED_EXTENSIONS.some((ext) =>
       lowerName.endsWith(ext)
     );
-    const hasValidMime = ALLOWED_MIMES.has(rawFile.type.toLowerCase());
+    const hasValidMime =
+      ALLOWED_MIMES.has(lowerMime) || lowerMime.startsWith("image/");
 
     if (!hasValidExt && !hasValidMime) {
       toast.error(
@@ -376,7 +381,7 @@ export function MitraRevisionPanel({
                   <input
                     id={inputId}
                     type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                    accept=".pdf,image/*"
                     disabled={uploadingCategory !== null || resubmitting}
                     onChange={(e) => {
                       handleUploadRevisionFile(meta.category, e.target.files);

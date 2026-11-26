@@ -91,9 +91,13 @@ export function PicSubmissionInspectClient({
     submission.target_finish_date ?? ""
   );
 
-  React.useEffect(() => {
+  const [prevFindings, setPrevFindings] = React.useState<string | null>(
+    submission.findings
+  );
+  if (submission.findings !== prevFindings) {
+    setPrevFindings(submission.findings);
     setNotes(submission.findings ?? "");
-  }, [submission.findings]);
+  }
 
   const stage = submission.current_stage;
   const isActionable = stage === "PIC_APPROVAL";
@@ -217,80 +221,85 @@ export function PicSubmissionInspectClient({
           },
         ]}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="outline"
-              className={getFinalStatusBadgeClass(submission.final_status)}
-            >
-              {submission.final_status}
-            </Badge>
-            <Badge
-              variant="outline"
-              className={getSlaStatusBadgeClass(submission.sla_status)}
-            >
-              Total SLA: {submission.actual_working_days}/
-              {submission.sla_target_days} HK ({submission.sla_status})
-            </Badge>
-            {isActionable && (
+          <div className="flex flex-col gap-2.5 lg:items-end">
+            {/* Baris 1: Status & SLA Badges */}
+            <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
               <Badge
                 variant="outline"
-                className={cn(
-                  "gap-1",
-                  stageSla.isOverdue
-                    ? "border-destructive/40 bg-destructive/15 text-destructive"
-                    : "border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
-                )}
+                className={getFinalStatusBadgeClass(submission.final_status)}
               >
-                <Clock className="size-3.5" />
-                SLA PIC: {stageSla.label}
+                {submission.final_status}
               </Badge>
-            )}
-            {paused && (
               <Badge
                 variant="outline"
-                className="gap-1 border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                className={getSlaStatusBadgeClass(submission.sla_status)}
               >
-                <PauseCircle className="size-3.5" />
-                SLA Di-PAUSE
+                Total SLA: {submission.actual_working_days}/
+                {submission.sla_target_days} HK ({submission.sla_status})
               </Badge>
-            )}
-            <a
-              href={`/api/submissions/${submission.id}/pdf?type=checksheet&download=1`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button variant="outline" size="default" className="gap-1.5 text-xs">
-                <Download className="size-4 text-brand-teal" />
-                Unduh PDF Lembar Hasil Cek
-              </Button>
-            </a>
-            {vendor && (
-              <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-subtle/80 px-3.5 py-2 text-xs">
-                <Building2 className="size-4 text-brand-teal" />
-                <div>
-                  <p className="font-semibold text-foreground">{vendor.name}</p>
-                  <p className="text-muted-foreground">
-                    NPWP: {vendor.npwp || "-"}
-                  </p>
+              {isActionable && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "gap-1",
+                    stageSla.isOverdue
+                      ? "border-destructive/40 bg-destructive/15 text-destructive"
+                      : "border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
+                  )}
+                >
+                  <Clock className="size-3.5" />
+                  SLA PIC: {stageSla.label}
+                </Badge>
+              )}
+              {paused && (
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                >
+                  <PauseCircle className="size-3.5" />
+                  SLA Di-PAUSE
+                </Badge>
+              )}
+            </div>
+
+            {/* Baris 2: Info Vendor & Unduh PDF */}
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              {vendor && (
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-subtle/80 px-3 py-1.5 text-xs">
+                  <Building2 className="size-4 shrink-0 text-brand-teal" />
+                  <div>
+                    <p className="font-semibold text-foreground">{vendor.name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      NPWP: {vendor.npwp || "-"}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+              <a
+                href={`/api/submissions/${submission.id}/pdf?type=checksheet&download=1`}
+                download
+              >
+                <Button variant="outline" size="default" className="gap-1.5 text-xs">
+                  <Download className="size-4 text-brand-teal" />
+                  Unduh PDF Lembar Hasil Cek
+                </Button>
+              </a>
+            </div>
           </div>
         }
       />
 
       {/* SPLIT-SCREEN LAYOUT */}
-      <div className="flex flex-col gap-5 lg:h-[calc(100vh-12rem)] lg:flex-row lg:items-stretch lg:overflow-hidden">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         {/* KIRI (55%): PREVIEW DOKUMEN VERSI TERBARU (is_latest = true) */}
-        <div className="w-full lg:flex lg:h-full lg:w-[55%] lg:flex-col">
+        <div className="w-full lg:sticky lg:top-6 lg:w-[55%]">
           <DocumentViewer
             documents={documents.length > 0 ? documents : latestDocuments}
-            className="lg:h-full"
           />
         </div>
 
         {/* KANAN (45%): LEMBAR HASIL CEK DIGITAL & PANEL KEPUTUSAN PIC USAHA */}
-        <div className="w-full space-y-5 lg:h-full lg:w-[45%] lg:overflow-y-auto lg:pr-1">
+        <div className="w-full space-y-5 lg:w-[45%]">
           {/* 1. RINGKASAN LEMBAR HASIL CEK DIGITAL */}
           <Card className="border-brand-teal/35 shadow-xs">
             <CardHeader className="border-b border-border bg-brand-teal/8">

@@ -1,6 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/server";
-import { sendResendEmail } from "@/lib/notifications";
+import { isResendConfigured, sendResendEmail } from "@/lib/notifications";
+
+const OtpRequestSchema = z.object({
+  email: z
+    .string({ error: "Masukkan alamat email yang terdaftar." })
+    .trim()
+    .email("Format alamat email tidak valid."),
+  next: z.string().nullable().optional(),
+});
 
 function buildOtpMagicLinkEmail(params: {
   fullName: string;
@@ -72,18 +81,22 @@ function buildOtpMagicLinkEmail(params: {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as {
-      email?: string;
-      next?: string | null;
-    };
-
-    const cleanEmail = body.email?.trim().toLowerCase();
-    if (!cleanEmail) {
+    const rawBody = await request.json().catch(() => null);
+    const parsed = OtpRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: "Masukkan alamat email yang terdaftar." },
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ??
+            "Masukkan alamat email yang terdaftar.",
+        },
         { status: 400 }
       );
     }
+
+    const body = parsed.data;
+    const cleanEmail = body.email.toLowerCase();
 
     const adminSupabase = createAdminClient();
 
@@ -115,7 +128,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Generate Magic Link + Kode OTP 6 Digit melalui Supabase Admin API
+    // 2. Pastikan layanan Resend telah dikonfigurasi SEBELUM memanggil generateLink.
+    // Jika generateLink dipanggil lebih dulu lalu fallback ke signInWithOtp di client,
+    // Supabase GoTrue akan memperbarui confirmation_sent_at dan langsung memicu rate-limit 60 detik ("after 59 seconds").
+    if (!isResendConfigured()) {
+      return NextResponse.json(
+        {
+          ok: false,
+          fallbackToSupabase: true,
+          error:
+            "RESEND_API_KEY belum dikonfigurasi, menggunakan pengiriman OTP bawaan Supabase.",
+        },
+        { status: 200 }
+      );
+    }
+
+    // 3. Generate Magic Link + Kode OTP 6 Digit melalui Supabase Admin API
     const origin =
       request.headers.get("origin") ||
       process.env.NEXT_PUBLIC_APP_URL ||
@@ -163,16 +191,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (!dispatch.sent) {
+      // Catatan: Karena generateLink sudah dipanggil pada tahap ini, confirmation_sent_at user sudah tercatat.
+      // Jangan memicu fallbackToSupabase (signInWithOtp) agar tidak terkena error rate-limit 59 detik.
       return NextResponse.json(
         {
           ok: false,
-          fallbackToSupabase: true,
+          fallbackToSupabase: false,
           error:
             dispatch.error ||
             dispatch.skippedReason ||
-            "Layanan email Resend belum aktif.",
+            "Gagal mengirim email OTP melalui Resend. Periksa konfigurasi RESEND_API_KEY.",
         },
-        { status: 503 }
+        { status: 502 }
       );
     }
 

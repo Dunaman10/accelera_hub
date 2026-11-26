@@ -48,12 +48,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-const ALLOWED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
+const ALLOWED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"];
 const ALLOWED_MIMES = new Set([
   "application/pdf",
   "image/jpeg",
   "image/jpg",
   "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
 ]);
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -135,10 +138,12 @@ export function NewSubmissionForm({
 
       for (const rawFile of rawFiles) {
         const lowerName = rawFile.name.toLowerCase();
+        const lowerMime = rawFile.type.toLowerCase();
         const hasValidExt = ALLOWED_EXTENSIONS.some((ext) =>
           lowerName.endsWith(ext)
         );
-        const hasValidMime = ALLOWED_MIMES.has(rawFile.type.toLowerCase());
+        const hasValidMime =
+          ALLOWED_MIMES.has(lowerMime) || lowerMime.startsWith("image/");
 
         if (!hasValidExt && !hasValidMime) {
           toast.error(
@@ -209,10 +214,12 @@ export function NewSubmissionForm({
 
     const rawFile = fileList[0];
     const lowerName = rawFile.name.toLowerCase();
+    const lowerMime = rawFile.type.toLowerCase();
     const hasValidExt = ALLOWED_EXTENSIONS.some((ext) =>
       lowerName.endsWith(ext)
     );
-    const hasValidMime = ALLOWED_MIMES.has(rawFile.type.toLowerCase());
+    const hasValidMime =
+      ALLOWED_MIMES.has(lowerMime) || lowerMime.startsWith("image/");
 
     if (!hasValidExt && !hasValidMime) {
       toast.error(
@@ -699,7 +706,7 @@ export function NewSubmissionForm({
             <input
               ref={replaceInputRef}
               type="file"
-              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              accept=".pdf,image/*"
               className="sr-only"
               onChange={(e) => {
                 handleReplaceFileChange(e.target.files);
@@ -792,7 +799,7 @@ export function NewSubmissionForm({
                         id={inputId}
                         type="file"
                         multiple
-                        accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                        accept=".pdf,image/*"
                         disabled={submitting || isCompressing}
                         onChange={(e) => {
                           handleSelectFiles(meta.category, e.target.files);
@@ -962,9 +969,14 @@ export function NewSubmissionForm({
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2.5">
-              <Link href="/mitra">
-                <Button type="button" variant="outline" disabled={submitting}>
+            <div className="flex w-full flex-col-reverse items-stretch gap-2.5 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+              <Link href="/mitra" className="w-full sm:w-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={submitting}
+                  className="w-full sm:w-auto"
+                >
                   Batal
                 </Button>
               </Link>
@@ -972,7 +984,7 @@ export function NewSubmissionForm({
                 type="submit"
                 size="lg"
                 disabled={submitting || (!vendor && !isInternalCreator)}
-                className="gap-2"
+                className="w-full gap-2 sm:w-auto"
               >
                 {submitting ? (
                   <>
