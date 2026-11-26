@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
-  FileCheck2,
   KeyRound,
   Loader2,
   Mail,
@@ -14,6 +13,8 @@ import {
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { getHomeRouteForRole } from "@/lib/constants";
+import { BrandLogo } from "@/components/brand/brand-logo";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -126,133 +127,145 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col justify-center bg-muted/30 px-4 py-10">
-      <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-sm font-semibold text-primary"
-          >
-            <FileCheck2 className="size-4" />
-            Accelera HUB
-          </Link>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Atur Ulang Password
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Perbarui kata sandi akun Accelera HUB Anda dengan aman
-          </p>
-        </div>
+    <div className="flex min-h-screen flex-1 flex-col bg-background text-foreground">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 pt-5 sm:px-6">
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Kembali ke Login
+        </Link>
+        <ThemeToggle showLabel />
+      </div>
 
-        <Card className="border-border/80 shadow-sm">
-          {checkingSession ? (
-            <CardContent className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Memeriksa sesi pemulihan...
-            </CardContent>
-          ) : hasSession ? (
-            <>
-              <CardHeader>
-                <CardTitle className="text-base">Buat Password Baru</CardTitle>
-                <CardDescription>
-                  Masukkan password baru untuk akun{" "}
-                  <strong>{userEmail ?? "Anda"}</strong>.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleUpdatePassword} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="new-password">
-                      Password Baru (Minimal 8 Karakter)
-                    </Label>
-                    <div className="relative">
-                      <KeyRound className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
-                      <Input
-                        id="new-password"
-                        type="password"
-                        required
-                        minLength={8}
-                        placeholder="Minimal 8 karakter"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="pl-9"
-                      />
-                    </div>
-                  </div>
+      <main className="flex flex-1 flex-col justify-center px-4 py-10">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <Link href="/login" className="transition-opacity hover:opacity-90">
+              <BrandLogo variant="full" size="sm" />
+            </Link>
+            <div className="space-y-1">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                Atur Ulang Password
+              </h1>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Gunakan halaman ini untuk memulihkan akses dan membuat kata
+                sandi baru bagi akun Accelera HUB Anda.
+              </p>
+            </div>
+          </div>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="confirm-password">
-                      Konfirmasi Password Baru
-                    </Label>
-                    <div className="relative">
-                      <KeyRound className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        required
-                        minLength={8}
-                        placeholder="Ulangi password baru"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="pl-9"
-                      />
-                    </div>
-                  </div>
+          <div className="grid grid-cols-3 gap-2.5 rounded-2xl border border-border bg-card p-3.5 text-center shadow-2xs">
+            <div className="space-y-1">
+              <span
+                className={`mx-auto inline-flex size-6 items-center justify-center rounded-full text-xs font-bold ${
+                  !hasSession && !emailSent
+                    ? "bg-brand-teal text-white"
+                    : "bg-emerald-600 text-white"
+                }`}
+              >
+                1
+              </span>
+              <p className="text-xs font-semibold text-foreground">
+                Kirim Email
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Masukkan email aktif
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span
+                className={`mx-auto inline-flex size-6 items-center justify-center rounded-full text-xs font-bold ${
+                  emailSent && !hasSession
+                    ? "bg-brand-teal text-white"
+                    : hasSession
+                    ? "bg-emerald-600 text-white"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                2
+              </span>
+              <p className="text-xs font-semibold text-foreground">
+                Buka Tautan
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Klik link di kotak masuk
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span
+                className={`mx-auto inline-flex size-6 items-center justify-center rounded-full text-xs font-bold ${
+                  hasSession
+                    ? "bg-brand-teal text-white"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                3
+              </span>
+              <p className="text-xs font-semibold text-foreground">
+                Sandi Baru
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Simpan &amp; masuk otomatis
+              </p>
+            </div>
+          </div>
 
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    size="lg"
-                    disabled={updatingPassword}
-                  >
-                    {updatingPassword ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        Menyimpan Password...
-                      </>
-                    ) : (
-                      "Simpan Password Baru"
-                    )}
-                  </Button>
-                </form>
+          <Card className="border-t-4 border-t-brand-teal shadow-sm">
+            {checkingSession ? (
+              <CardContent className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin text-brand-teal" />
+                Memeriksa sesi pemulihan...
               </CardContent>
-            </>
-          ) : (
-            <>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  Minta Tautan Pemulihan Password
-                </CardTitle>
-                <CardDescription>
-                  Masukkan email akun Anda. Kami akan mengirimkan tautan untuk
-                  mengatur ulang password.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {emailSent ? (
-                  <div className="flex items-start gap-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-800 dark:text-emerald-300">
-                    <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-                    <div className="leading-relaxed">
-                      Tautan pemulihan telah dikirim ke{" "}
-                      <strong>{emailInput}</strong>. Silakan buka kotak masuk
-                      email Anda dan klik tautan tersebut untuk membuka formulir
-                      password baru.
-                    </div>
-                  </div>
-                ) : (
-                  <form onSubmit={handleSendResetEmail} className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="reset-email">Email Terdaftar</Label>
+            ) : hasSession ? (
+              <>
+                <CardHeader>
+                  <CardTitle className="text-base">Buat Password Baru</CardTitle>
+                  <CardDescription>
+                    Masukkan password baru untuk akun{" "}
+                    <strong className="text-foreground">
+                      {userEmail ?? "Anda"}
+                    </strong>
+                    .
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleUpdatePassword} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password">
+                        Password Baru (Minimal 8 Karakter)
+                      </Label>
                       <div className="relative">
-                        <Mail className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
+                        <KeyRound className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
-                          id="reset-email"
-                          type="email"
+                          id="new-password"
+                          type="password"
                           required
-                          placeholder="nama@perusahaan.co.id"
-                          value={emailInput}
-                          onChange={(e) => setEmailInput(e.target.value)}
-                          className="pl-9"
+                          minLength={8}
+                          placeholder="Minimal 8 karakter"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-password">
+                        Konfirmasi Password Baru
+                      </Label>
+                      <div className="relative">
+                        <KeyRound className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="confirm-password"
+                          type="password"
+                          required
+                          minLength={8}
+                          placeholder="Ulangi password baru"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="pl-10"
                         />
                       </div>
                     </div>
@@ -261,34 +274,93 @@ export default function ResetPasswordPage() {
                       type="submit"
                       className="w-full"
                       size="lg"
-                      disabled={sendingEmail}
+                      disabled={updatingPassword}
                     >
-                      {sendingEmail ? (
+                      {updatingPassword ? (
                         <>
                           <Loader2 className="size-4 animate-spin" />
-                          Mengirim Tautan...
+                          Menyimpan Password...
                         </>
                       ) : (
-                        "Kirim Tautan Reset Password"
+                        "Simpan Password Baru"
                       )}
                     </Button>
                   </form>
-                )}
-              </CardContent>
-            </>
-          )}
+                </CardContent>
+              </>
+            ) : (
+              <>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    Minta Tautan Pemulihan Password
+                  </CardTitle>
+                  <CardDescription>
+                    Masukkan email akun Anda. Kami akan mengirimkan tautan untuk
+                    mengatur ulang password.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {emailSent ? (
+                    <div className="flex items-start gap-2.5 rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-200">
+                      <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+                      <div className="leading-relaxed">
+                        Tautan pemulihan telah dikirim ke{" "}
+                        <strong>{emailInput}</strong>. Silakan buka kotak masuk
+                        email Anda dan klik tautan tersebut untuk membuka
+                        formulir password baru.
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSendResetEmail} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="reset-email">Email Terdaftar</Label>
+                        <div className="relative">
+                          <Mail className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="reset-email"
+                            type="email"
+                            required
+                            placeholder="nama@perusahaan.co.id"
+                            value={emailInput}
+                            onChange={(e) => setEmailInput(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
 
-          <CardFooter className="border-t bg-muted/30">
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="size-3.5" />
-              Kembali ke Halaman Login
-            </Link>
-          </CardFooter>
-        </Card>
-      </div>
-    </main>
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        size="lg"
+                        disabled={sendingEmail}
+                      >
+                        {sendingEmail ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            Mengirim Tautan...
+                          </>
+                        ) : (
+                          "Kirim Tautan Reset Password"
+                        )}
+                      </Button>
+                    </form>
+                  )}
+                </CardContent>
+              </>
+            )}
+
+            <CardFooter>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="size-4" />
+                Kembali ke Halaman Login
+              </Link>
+            </CardFooter>
+          </Card>
+        </div>
+      </main>
+    </div>
   );
 }

@@ -40,6 +40,18 @@ import {
 import { formatTerbilangRupiah } from "@/lib/format-terbilang";
 import { isStagePaused } from "@/lib/sla";
 import { DocumentViewer } from "@/components/documents/document-viewer";
+import { SetBreadcrumbLabel } from "@/components/layout/breadcrumb-context";
+import { PageGuide } from "@/components/layout/page-guide";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +61,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -86,9 +99,18 @@ export function AkuntansiSubmissionInspectClient({
   const [submitting, setSubmitting] = React.useState<
     "akuntansi_approve" | "akuntansi_reject" | null
   >(null);
+  const [confirmDecision, setConfirmDecision] = React.useState<
+    "akuntansi_approve" | "akuntansi_reject" | null
+  >(null);
   const [notes, setNotes] = React.useState<string>(submission.findings ?? "");
   const [rejectTarget, setRejectTarget] =
     React.useState<AkuntansiRejectTarget>("revisi_mitra");
+  const [followupPic, setFollowupPic] = React.useState<string>(
+    submission.followup_pic ?? "Mitra / Vendor"
+  );
+  const [targetFinishDate, setTargetFinishDate] = React.useState<string>(
+    submission.target_finish_date ?? ""
+  );
 
   const [checklist, setChecklist] = React.useState<AccountingChecklistState>({
     nominalMatch: true,
@@ -135,6 +157,24 @@ export function AkuntansiSubmissionInspectClient({
     }
   }
 
+  function requestAkuntansiDecision(
+    action: "akuntansi_approve" | "akuntansi_reject"
+  ) {
+    if (action === "akuntansi_approve" && !allChecklistChecked) {
+      toast.error(
+        "Pastikan seluruh item pada Panel Checklist Validasi Akuntansi & Pajak telah dicentang sebelum menyatakan Validasi Lulus."
+      );
+      return;
+    }
+    if (action === "akuntansi_reject" && !notes.trim()) {
+      toast.error(
+        "Rincian temuan wajib diisi apabila Validasi Akuntansi Tidak Lulus."
+      );
+      return;
+    }
+    setConfirmDecision(action);
+  }
+
   async function handleAkuntansiDecision(
     action: "akuntansi_approve" | "akuntansi_reject"
   ) {
@@ -165,6 +205,17 @@ export function AkuntansiSubmissionInspectClient({
             findings: notes.trim() || null,
             latest_notes: notes.trim() || null,
             reject_target: rejectTarget,
+            followup_pic:
+              action === "akuntansi_reject"
+                ? followupPic.trim() ||
+                  (rejectTarget === "return_pic"
+                    ? "PIC Usaha"
+                    : "Mitra / Vendor")
+                : null,
+            target_finish_date:
+              action === "akuntansi_reject"
+                ? targetFinishDate.trim() || null
+                : null,
           }),
         }
       );
@@ -206,24 +257,47 @@ export function AkuntansiSubmissionInspectClient({
   }
 
   return (
-    <div className="space-y-4">
-      {/* TOP BAR */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background p-4 shadow-2xs">
-        <div className="space-y-1">
+    <div className="space-y-5">
+      <SetBreadcrumbLabel label={submission.agenda_no} />
+
+      <PageGuide
+        eyebrow={`Validasi Akuntansi & Pajak • ${STAGE_LABELS[stage]}`}
+        title={`Validasi Keuangan ${submission.agenda_no}`}
+        purpose="Layar split-screen validasi perpajakan dan akuntansi untuk menyandingkan Invoice, e-Faktur Pajak, PO/Kontrak, dan BAST (kiri) dengan 4 item checklist wajib (kanan) sebelum meneruskan ke Penyusunan SPP."
+        defaultCollapsed={true}
+        tip="Keempat item checklist wajib dicentang agar tombol Validasi Lulus (Ke SPP) aktif."
+        topSlot={
           <Link
             href="/akuntansi"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" />
             Kembali ke Antrean Validasi Akuntansi
           </Link>
+        }
+        steps={[
+          {
+            title: "Pilih Dokumen Fokus",
+            description:
+              "Gunakan pintasan Invoice, Faktur Pajak, PO/Kontrak, dan BAST di atas viewer kiri.",
+            badge: "Langkah 1",
+            status: "active",
+          },
+          {
+            title: "Verifikasi 4 Checklist",
+            description:
+              "Pastikan nominal, perhitungan DPP/PPN/PPh, seri Faktur Pajak, dan referensi PO/BAST sesuai.",
+            badge: "Langkah 2",
+          },
+          {
+            title: "Putuskan Lulus / Temuan",
+            description:
+              "Klik Validasi Lulus untuk meneruskan ke SPP (1 HK), atau pilih tujuan pengembalian terarah bila ada temuan.",
+            badge: "SLA 2 HK",
+          },
+        ]}
+        actions={
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-mono text-xl font-bold tracking-tight">
-              {submission.agenda_no}
-            </h1>
-            <Badge variant="outline" className="font-semibold">
-              {STAGE_LABELS[stage]}
-            </Badge>
             <Badge
               variant="outline"
               className={getFinalStatusBadgeClass(submission.final_status)}
@@ -247,7 +321,7 @@ export function AkuntansiSubmissionInspectClient({
                     : "border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
                 )}
               >
-                <Clock className="size-3" />
+                <Clock className="size-3.5" />
                 SLA Akuntansi: {stageSla.label}
               </Badge>
             )}
@@ -256,53 +330,48 @@ export function AkuntansiSubmissionInspectClient({
                 variant="outline"
                 className="gap-1 border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-300"
               >
-                <PauseCircle className="size-3" />
+                <PauseCircle className="size-3.5" />
                 SLA Di-PAUSE
               </Badge>
             )}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={`/api/submissions/${submission.id}/pdf?type=checksheet&download=1`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <Download className="size-3.5" />
-              Unduh PDF Lembar Hasil Cek
-            </Button>
-          </a>
-
-          {stage === "SPP_PROCESSING" && (
-            <Link href="/spp">
-              <Button size="sm" className="gap-1.5 text-xs">
-                <QrCode className="size-3.5" />
-                Buka Meja Penerbitan SPP
+            <a
+              href={`/api/submissions/${submission.id}/pdf?type=checksheet&download=1`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button variant="outline" size="default" className="gap-1.5 text-xs">
+                <Download className="size-4 text-brand-teal" />
+                Unduh PDF Lembar Hasil Cek
               </Button>
-            </Link>
-          )}
-
-          {vendor && (
-            <div className="flex items-center gap-2.5 rounded-xl border bg-muted/30 px-3.5 py-2 text-xs">
-              <Building2 className="size-4 text-primary" />
-              <div>
-                <p className="font-semibold">{vendor.name}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  NPWP: {vendor.npwp || "-"}
-                </p>
+            </a>
+            {stage === "SPP_PROCESSING" && (
+              <Link href="/spp">
+                <Button size="default" className="gap-1.5 text-xs">
+                  <QrCode className="size-4" />
+                  Buka Meja Penerbitan SPP
+                </Button>
+              </Link>
+            )}
+            {vendor && (
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-subtle/80 px-3.5 py-2 text-xs">
+                <Building2 className="size-4 text-brand-teal" />
+                <div>
+                  <p className="font-semibold text-foreground">{vendor.name}</p>
+                  <p className="text-muted-foreground">
+                    NPWP: {vendor.npwp || "-"}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+          </div>
+        }
+      />
 
       {/* SPLIT-SCREEN DESKTOP 2 KOLOM */}
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-5 lg:h-[calc(100vh-12rem)] lg:flex-row lg:items-stretch lg:overflow-hidden">
         {/* KOLOM KIRI (55%): DOCUMENT VIEWER (FOKUS INVOICE, FAKTUR PAJAK, PO/KONTRAK, BAST) */}
-        <div className="w-full space-y-2.5 lg:w-[55%] lg:sticky lg:top-18">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-background px-3 py-2 text-xs">
+        <div className="w-full space-y-2.5 lg:flex lg:h-full lg:w-[55%] lg:flex-col">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border bg-background px-3 py-2 text-xs">
             <span className="font-semibold text-muted-foreground">
               Fokus Dokumen Pajak &amp; Keuangan:
             </span>
@@ -335,20 +404,21 @@ export function AkuntansiSubmissionInspectClient({
             documents={documents}
             selectedDocumentId={selectedDocId}
             onSelectDocument={(doc) => setSelectedDocId(doc.id)}
+            className="lg:min-h-0 lg:flex-1"
           />
         </div>
 
-        {/* KOLOM KANAN (45%): PANEL CHECKLIST VALIDASI AKUNTANSI & PAJAK */}
-        <div className="w-full space-y-5 lg:w-[45%]">
+        {/* KOLOM KANAN (45%): PANEL CHECKLIST VALIDASI AKUNTANSI & PAJAK (SCROLL INDEPENDEN) */}
+        <div className="w-full space-y-5 lg:h-full lg:w-[45%] lg:overflow-y-auto lg:pr-1">
           {/* 1. PANEL CHECKLIST VALIDASI AKUNTANSI & PAJAK */}
-          <Card className="border-primary/40 shadow-xs">
-            <CardHeader className="border-b bg-primary/5 pb-3">
+          <Card className="border-brand-teal/35 shadow-xs">
+            <CardHeader className="border-b border-border bg-brand-teal/8">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <FileSpreadsheet className="size-4 text-primary" />
+                  <FileSpreadsheet className="size-4 text-brand-teal" />
                   Panel Checklist Validasi Akuntansi &amp; Pajak
                 </CardTitle>
-                <Badge variant="default" className="text-[10px]">
+                <Badge variant="default" className="text-xs">
                   Batas SLA: 2 Hari Kerja
                 </Badge>
               </div>
@@ -358,7 +428,7 @@ export function AkuntansiSubmissionInspectClient({
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-4 pt-4">
+            <CardContent className="space-y-4">
               {/* Ringkasan Nilai & NPWP */}
               <div className="rounded-lg border bg-muted/20 p-3 text-xs space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -526,11 +596,13 @@ export function AkuntansiSubmissionInspectClient({
                       id="reject-target-select"
                       disabled={submitting !== null}
                       value={rejectTarget}
-                      onChange={(e) =>
-                        setRejectTarget(
-                          e.target.value as AkuntansiRejectTarget
-                        )
-                      }
+                      onChange={(e) => {
+                        const next = e.target.value as AkuntansiRejectTarget;
+                        setRejectTarget(next);
+                        setFollowupPic(
+                          next === "return_pic" ? "PIC Usaha" : "Mitra / Vendor"
+                        );
+                      }}
                       className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-xs font-medium outline-none"
                     >
                       <option value="revisi_mitra">
@@ -542,6 +614,40 @@ export function AkuntansiSubmissionInspectClient({
                         Internal Aktif)
                       </option>
                     </select>
+
+                    <div className="grid gap-2.5 pt-1 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="akuntansi-followup-pic"
+                          className="text-[11px]"
+                        >
+                          PIC Tindak Lanjut
+                        </Label>
+                        <Input
+                          id="akuntansi-followup-pic"
+                          disabled={submitting !== null}
+                          value={followupPic}
+                          onChange={(e) => setFollowupPic(e.target.value)}
+                          className="h-8 bg-background text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="akuntansi-target-finish"
+                          className="text-[11px]"
+                        >
+                          Target Selesai Tindak Lanjut
+                        </Label>
+                        <Input
+                          id="akuntansi-target-finish"
+                          type="date"
+                          disabled={submitting !== null}
+                          value={targetFinishDate}
+                          onChange={(e) => setTargetFinishDate(e.target.value)}
+                          className="h-8 bg-background text-xs"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -549,7 +655,7 @@ export function AkuntansiSubmissionInspectClient({
                       type="button"
                       disabled={submitting !== null || !allChecklistChecked}
                       onClick={() =>
-                        handleAkuntansiDecision("akuntansi_approve")
+                        requestAkuntansiDecision("akuntansi_approve")
                       }
                       className="w-full gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
                     >
@@ -566,7 +672,7 @@ export function AkuntansiSubmissionInspectClient({
                       variant="destructive"
                       disabled={submitting !== null}
                       onClick={() =>
-                        handleAkuntansiDecision("akuntansi_reject")
+                        requestAkuntansiDecision("akuntansi_reject")
                       }
                       className="w-full gap-1.5"
                     >
@@ -685,6 +791,53 @@ export function AkuntansiSubmissionInspectClient({
           </Card>
         </div>
       </div>
+
+      <AlertDialog
+        open={confirmDecision !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDecision(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmDecision === "akuntansi_approve"
+                ? "Nyatakan Validasi Akuntansi Lulus?"
+                : "Nyatakan Validasi Tidak Lulus?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDecision === "akuntansi_approve"
+                ? `Seluruh aspek pajak & keuangan pada ${submission.agenda_no} akan dinyatakan Lulus dan diteruskan ke tahap Penerbitan SPP (Target SLA: 1 Hari Kerja).`
+                : rejectTarget === "return_pic"
+                ? `Pengajuan ${submission.agenda_no} akan dikembalikan ke PIC Usaha untuk koordinasi internal.`
+                : `Pengajuan ${submission.agenda_no} akan dikembalikan untuk Revisi Mitra / Koordinasi Admin Accelera (Timer SLA di-PAUSE).`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submitting !== null}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant={
+                confirmDecision === "akuntansi_approve"
+                  ? "default"
+                  : "destructive"
+              }
+              disabled={submitting !== null}
+              onClick={() => {
+                if (!confirmDecision) return;
+                const actionToRun = confirmDecision;
+                setConfirmDecision(null);
+                void handleAkuntansiDecision(actionToRun);
+              }}
+            >
+              {confirmDecision === "akuntansi_approve"
+                ? "Ya, Validasi Lulus"
+                : "Ya, Kembalikan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

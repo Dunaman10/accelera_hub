@@ -150,20 +150,20 @@ export function DocumentViewer({
   return (
     <div
       className={cn(
-        "flex flex-col overflow-hidden rounded-xl border bg-background shadow-2xs",
+        "flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xs",
         className
       )}
     >
       {/* HEADER BAR: TAB DAFTAR FILE TERBARU VS RIWAYAT VERSI */}
-      <div className="border-b bg-muted/30 p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
+      <div className="border-b border-border bg-surface-subtle/70 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
             <Button
               type="button"
-              size="xs"
+              size="sm"
               variant={viewTab === "latest" ? "default" : "outline"}
               onClick={() => setViewTab("latest")}
-              className="gap-1"
+              className="gap-1.5"
             >
               <CheckCircle2 className="size-3.5" />
               Dokumen Aktif (
@@ -171,31 +171,31 @@ export function DocumentViewer({
             </Button>
             <Button
               type="button"
-              size="xs"
+              size="sm"
               variant={viewTab === "history" ? "default" : "outline"}
               onClick={() => setViewTab("history")}
-              className="gap-1"
+              className="gap-1.5"
             >
               <History className="size-3.5" />
               Riwayat Versi ({sortedDocs.length})
             </Button>
           </div>
 
-          <Badge variant="outline" className="text-[10px]">
-            Private Proxy Stream • No Public Link
+          <Badge variant="outline" className="text-xs">
+            Private Proxy Stream • Aman
           </Badge>
         </div>
 
         {/* FILTER KATEGORI DOKUMEN */}
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveCategoryFilter("ALL")}
             className={cn(
-              "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+              "cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors",
               activeCategoryFilter === "ALL"
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border bg-background text-muted-foreground hover:text-foreground"
+                ? "border-brand-teal bg-brand-teal/12 text-accent-foreground"
+                : "border-border bg-card text-muted-foreground hover:border-brand-teal/40 hover:text-foreground"
             )}
           >
             Semua Kategori
@@ -213,14 +213,14 @@ export function DocumentViewer({
                 type="button"
                 onClick={() => setActiveCategoryFilter(meta.category)}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+                  "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors",
                   activeCategoryFilter === meta.category
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background text-muted-foreground hover:text-foreground"
+                    ? "border-brand-teal bg-brand-teal/12 text-accent-foreground"
+                    : "border-border bg-card text-muted-foreground hover:border-brand-teal/40 hover:text-foreground"
                 )}
               >
                 <span>{DOC_CATEGORY_LABELS[meta.category]}</span>
-                <span className="rounded-full bg-muted px-1.5 text-[10px]">
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums">
                   {countInCat}
                 </span>
               </button>
@@ -230,7 +230,7 @@ export function DocumentViewer({
 
         {/* HORIZONTAL FILE SELECTOR PILLS */}
         {filteredDocs.length > 0 && (
-          <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
+          <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1">
             {filteredDocs.map((doc) => {
               const isSelected = activeDoc?.id === doc.id;
               const isImg =
@@ -243,31 +243,33 @@ export function DocumentViewer({
                   type="button"
                   onClick={() => handleSelectDoc(doc)}
                   className={cn(
-                    "flex shrink-0 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-all",
+                    "flex shrink-0 cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-xs transition-all",
                     isSelected
-                      ? "border-primary bg-primary/10 font-semibold text-foreground ring-1 ring-primary/30"
-                      : "border-border bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                      ? "border-brand-teal bg-brand-teal/12 font-semibold text-foreground ring-1 ring-brand-teal/35"
+                      : "border-border bg-card text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                   )}
                 >
                   {isImg ? (
-                    <FileImage className="size-3.5 shrink-0 text-sky-600" />
+                    <FileImage className="size-4 shrink-0 text-brand-teal" />
                   ) : (
-                    <FileText className="size-3.5 shrink-0 text-primary" />
+                    <FileText className="size-4 shrink-0 text-primary" />
                   )}
-                  <div className="max-w-[175px]">
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] font-bold uppercase text-primary">
+                  <div className="max-w-[190px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-bold uppercase text-brand-teal">
                         {DOC_CATEGORY_LABELS[doc.category]}
                       </span>
                       <Badge
                         variant={doc.is_latest ? "default" : "secondary"}
-                        className="h-4 px-1 text-[9px]"
+                        className="min-h-5 px-1.5 text-[10px]"
                       >
                         v{doc.version}
                         {doc.is_latest ? " • Terbaru" : " • Arsip"}
                       </Badge>
                     </div>
-                    <p className="truncate text-[11px]">{doc.file_name}</p>
+                    <p className="mt-0.5 truncate text-xs text-foreground">
+                      {doc.file_name}
+                    </p>
                   </div>
                 </button>
               );
@@ -278,30 +280,30 @@ export function DocumentViewer({
 
       {/* TOOLBAR KONTROL ZOOM, ROTASI & SWITCH VERSI */}
       {activeDoc && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-background px-3 py-2 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-4 py-3 text-xs">
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Badge variant="secondary" className="text-[10px]">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="text-xs">
                 {DOC_CATEGORY_LABELS[activeDoc.category]}
               </Badge>
-              <span className="truncate font-semibold">
+              <span className="truncate text-sm font-semibold text-foreground">
                 {activeDoc.file_name}
               </span>
               <Badge
                 variant={activeDoc.is_latest ? "default" : "outline"}
-                className="text-[10px]"
+                className="text-xs"
               >
                 Versi {activeDoc.version}{" "}
                 {activeDoc.is_latest ? "(Terbaru)" : "(Versi Lama)"}
               </Badge>
             </div>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               {formatBytes(Number(activeDoc.file_size_bytes))} • Diunggah{" "}
               {formatDateTimeWIB(activeDoc.created_at)}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1.5">
             {/* Quick Version Switcher jika kategori ini punya >1 versi */}
             {categoryVersionHistory.length > 1 && (
               <select
@@ -313,7 +315,7 @@ export function DocumentViewer({
                   );
                   if (target) handleSelectDoc(target);
                 }}
-                className="h-7 rounded-md border border-input bg-background px-2 text-[11px] font-medium"
+                className="h-8 rounded-lg border border-input bg-background px-2.5 text-xs font-medium text-foreground outline-none focus-visible:border-ring"
               >
                 {categoryVersionHistory.map((verDoc) => (
                   <option key={verDoc.id} value={verDoc.id}>
@@ -338,7 +340,7 @@ export function DocumentViewer({
             <button
               type="button"
               onClick={handleResetTransform}
-              className="min-w-[46px] rounded-md border px-1.5 py-0.5 text-center font-mono text-[11px] font-semibold hover:bg-muted"
+              className="min-w-[50px] cursor-pointer rounded-md border border-border bg-background px-2 py-1 text-center font-mono text-xs font-semibold text-foreground hover:bg-accent"
               title="Reset Zoom & Rotasi"
             >
               {zoomPercent}%
@@ -379,10 +381,10 @@ export function DocumentViewer({
                   type="button"
                   variant="outline"
                   size="xs"
-                  className="gap-1"
+                  className="gap-1.5"
                   title="Buka di Tab Baru"
                 >
-                  <Maximize2 className="size-3" />
+                  <Maximize2 className="size-3.5" />
                   <span className="hidden sm:inline">Layar Penuh</span>
                 </Button>
               </a>
@@ -392,7 +394,7 @@ export function DocumentViewer({
       )}
 
       {/* VIEWPORT PREVIEW DOKUMEN */}
-      <div className="relative flex min-h-[480px] flex-1 items-center justify-center overflow-auto bg-neutral-900/95 p-3 lg:min-h-[640px]">
+      <div className="relative flex min-h-[420px] flex-1 items-center justify-center overflow-auto bg-slate-950 p-4">
         {!activeDoc || !streamUrl ? (
           <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-xs text-neutral-300">
             <FileText className="size-8 stroke-1 opacity-60" />
@@ -415,9 +417,9 @@ export function DocumentViewer({
             />
           </div>
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center">
+          <div className="flex h-full min-h-[400px] w-full flex-col items-center justify-center">
             <div
-              className="h-[620px] w-full overflow-hidden rounded-lg bg-white shadow-xl transition-transform duration-200"
+              className="h-full min-h-[460px] w-full flex-1 overflow-hidden rounded-lg bg-white shadow-xl transition-transform duration-200"
               style={{
                 transform: `scale(${
                   zoomPercent / 100

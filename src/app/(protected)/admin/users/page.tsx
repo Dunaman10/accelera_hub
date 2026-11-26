@@ -1,7 +1,7 @@
 import { Suspense } from "react";
-import { Loader2 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { TablePageSkeleton } from "@/components/ui/page-skeletons";
 import { UsersClient } from "./users-client";
 
 async function AdminUsersContent() {
@@ -26,14 +26,7 @@ async function AdminUsersContent() {
 
 export default function AdminUsersPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Manajemen User...
-        </div>
-      }
-    >
+    <Suspense fallback={<TablePageSkeleton />}>
       <AdminUsersContent />
     </Suspense>
   );

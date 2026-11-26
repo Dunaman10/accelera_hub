@@ -19,6 +19,16 @@ import {
   saveHolidayAction,
   seedDefaultHolidaysAction,
 } from "./actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +46,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -46,6 +57,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageGuide } from "@/components/layout/page-guide";
 
 interface HolidaysClientProps {
   initialHolidays: NationalHoliday[];
@@ -86,6 +98,8 @@ export function HolidaysClient({ initialHolidays }: HolidaysClientProps) {
   const [saving, setSaving] = React.useState(false);
   const [seeding, setSeeding] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [confirmDeleteHoliday, setConfirmDeleteHoliday] =
+    React.useState<NationalHoliday | null>(null);
 
   React.useEffect(() => {
     setHolidays(initialHolidays);
@@ -181,14 +195,6 @@ export function HolidaysClient({ initialHolidays }: HolidaysClientProps) {
   }
 
   async function handleDeleteHoliday(item: NationalHoliday) {
-    if (
-      !window.confirm(
-        `Hapus hari libur "${item.description}" (${item.holiday_date}) dari kalender perhitungan SLA?`
-      )
-    ) {
-      return;
-    }
-
     setDeletingId(item.id);
     try {
       const res = await deleteHolidayAction(item.id);
@@ -233,98 +239,121 @@ export function HolidaysClient({ initialHolidays }: HolidaysClientProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Master Hari Libur Nasional &amp; Cuti Bersama
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Seluruh tanggal pada tabel ini otomatis dikecualikan dari perhitungan
-            argo SLA 6 Hari Kerja (selain Sabtu &amp; Minggu).
-          </p>
-        </div>
+      <PageGuide
+        eyebrow="Konfigurasi Mesin SLA"
+        title="Master Hari Libur Nasional & Cuti Bersama"
+        purpose="Mengatur kalender tanggal libur resmi Indonesia yang secara otomatis dikecualikan dari perhitungan argo SLA internal 6 Hari Kerja (selain akhir pekan Sabtu & Minggu)."
+        tip="Setiap perubahan tanggal libur di halaman ini langsung memengaruhi kalkulasi durasi SLA seluruh pengajuan aktif."
+        steps={[
+          {
+            title: "Sinkronisasi Kalender SKB",
+            description:
+              "Gunakan tombol Muat Seed SKB 2026–2027 untuk mengisi jadwal libur nasional resmi secara instan.",
+            badge: "Langkah 1",
+            status: "active",
+          },
+          {
+            title: "Tambah / Edit Tanggal",
+            description:
+              "Tambahkan tanggal libur khusus atau cuti bersama tambahan dan tandai kategorinya dengan tepat.",
+            badge: "Langkah 2",
+          },
+          {
+            title: "Pemotongan SLA Otomatis",
+            description:
+              "Mesin SLA otomatis melewati tanggal-tanggal pada tabel ini saat menghitung hari kerja aktif.",
+            badge: "Otomatis",
+          },
+        ]}
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSeedDefault}
+              disabled={seeding}
+              className="gap-2"
+            >
+              {seeding ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4 text-brand-teal" />
+              )}
+              Muat Seed SKB 2026–2027
+            </Button>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleSeedDefault}
-            disabled={seeding}
-            className="gap-1.5"
-          >
-            {seeding ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <RefreshCw className="size-4" />
-            )}
-            Muat Seed SKB 2026–2027
-          </Button>
-
-          <Button onClick={openCreateDialog} className="gap-1.5">
-            <CalendarPlus className="size-4" />
-            Tambah Hari Libur
-          </Button>
-        </div>
-      </div>
+            <Button onClick={openCreateDialog} size="lg" className="gap-2">
+              <CalendarPlus className="size-4" />
+              Tambah Hari Libur
+            </Button>
+          </div>
+        }
+      />
 
       {/* RINGKASAN KPI KALENDER SLA */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total Tanggal Dikecualikan</CardDescription>
-            <CardTitle className="text-2xl font-bold">
+        <Card className="border-t-4 border-t-brand-navy dark:border-t-sky-400">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
+              Total Tanggal Dikecualikan
+            </CardDescription>
+            <CardTitle className="text-3xl font-extrabold text-foreground tabular-nums">
               {holidays.length} Hari
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            Digunakan oleh fungsi <code>calculate_working_days()</code>
+            Digunakan otomatis oleh mesin hitung SLA 6 Hari Kerja
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Libur Nasional Resmi</CardDescription>
-            <CardTitle className="text-2xl font-bold text-primary">
+        <Card className="border-t-4 border-t-brand-teal">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
+              Libur Nasional Resmi
+            </CardDescription>
+            <CardTitle className="text-3xl font-extrabold text-brand-teal tabular-nums">
               {totalNational} Hari
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            <code>is_joint_leave = false</code>
+            Hari libur nasional kalender pemerintah
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Cuti Bersama (Joint Leave)</CardDescription>
-            <CardTitle className="text-2xl font-bold text-amber-600">
+        <Card className="border-t-4 border-t-amber-500">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
+              Cuti Bersama (Joint Leave)
+            </CardDescription>
+            <CardTitle className="text-3xl font-extrabold text-amber-600 tabular-nums dark:text-amber-400">
               {totalJointLeave} Hari
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            <code>is_joint_leave = true</code>
+            Cuti bersama sesuai SKB 3 Menteri
           </CardContent>
         </Card>
       </div>
 
       {/* FILTER BAR */}
       <Card>
-        <CardContent className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <CardContent className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
               placeholder="Cari tanggal (YYYY-MM-DD) atau nama hari libur..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="pl-10"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <select
               value={yearFilter}
               onChange={(e) => setYearFilter(e.target.value)}
-              className="flex h-9 rounded-lg border border-input bg-background px-3 text-xs font-medium outline-none"
+              className="flex h-10 rounded-lg border border-input bg-background px-3.5 text-sm font-medium text-foreground outline-none focus-visible:border-ring dark:bg-card/70"
             >
               <option value="ALL">Semua Tahun ({holidays.length})</option>
               {availableYears.map((y) => (
@@ -334,7 +363,7 @@ export function HolidaysClient({ initialHolidays }: HolidaysClientProps) {
               ))}
             </select>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <Button
                 type="button"
                 size="sm"
@@ -379,10 +408,11 @@ export function HolidaysClient({ initialHolidays }: HolidaysClientProps) {
         </CardHeader>
         <CardContent>
           {filteredHolidays.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-sm text-muted-foreground">
-              <CalendarDays className="size-8 stroke-1" />
-              <p>Belum ada data hari libur yang sesuai dengan filter.</p>
-            </div>
+            <EmptyState
+              icon={CalendarDays}
+              title="Tidak ada hari libur yang sesuai"
+              description="Coba ubah filter tahun, kategori, atau kata kunci pencarian."
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -451,7 +481,7 @@ export function HolidaysClient({ initialHolidays }: HolidaysClientProps) {
                             variant="destructive"
                             size="icon-sm"
                             disabled={deletingId === item.id}
-                            onClick={() => handleDeleteHoliday(item)}
+                            onClick={() => setConfirmDeleteHoliday(item)}
                             title="Hapus Hari Libur"
                           >
                             {deletingId === item.id ? (
@@ -568,6 +598,44 @@ export function HolidaysClient({ initialHolidays }: HolidaysClientProps) {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={confirmDeleteHoliday !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeleteHoliday(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Hari Libur SLA?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tanggal{" "}
+              <strong className="tabular-nums">
+                {confirmDeleteHoliday?.holiday_date}
+              </strong>{" "}
+              ({confirmDeleteHoliday?.description}) akan dihapus dari kalender
+              pengecualian SLA 6 Hari Kerja.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingId !== null}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deletingId !== null}
+              onClick={() => {
+                if (!confirmDeleteHoliday) return;
+                const target = confirmDeleteHoliday;
+                setConfirmDeleteHoliday(null);
+                void handleDeleteHoliday(target);
+              }}
+            >
+              Ya, Hapus Tanggal
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

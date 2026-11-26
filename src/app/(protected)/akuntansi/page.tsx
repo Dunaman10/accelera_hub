@@ -6,8 +6,6 @@ import {
   Clock,
   Eye,
   FileSpreadsheet,
-  FileText,
-  Loader2,
   QrCode,
 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
@@ -30,6 +28,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageGuide } from "@/components/layout/page-guide";
+import { QueuePageSkeleton } from "@/components/ui/page-skeletons";
 import {
   Table,
   TableBody,
@@ -101,71 +102,88 @@ async function AkuntansiContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Meja Validasi Akuntansi &amp; Perpajakan
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Pemeriksaan kesesuaian nominal, DPP/PPN/PPh, nomor &amp; tanggal
-            Faktur Pajak, serta kesesuaian PO/Kontrak (Batas SLA Tahap
-            Akuntansi: Maks. 2 Hari Kerja).
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="default" className="gap-1.5 px-3 py-1 text-xs">
-            <Clock className="size-3.5" />
-            Target SLA Akuntansi: 2 Hari Kerja
-          </Badge>
-          <Link href="/spp">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <QrCode className="size-3.5" />
-              Ke Meja Penerbitan SPP
-            </Button>
-          </Link>
-        </div>
-      </div>
+      <PageGuide
+        eyebrow="Tahap 5 dari 6 • Validasi Pajak & Keuangan"
+        title="Meja Validasi Akuntansi & Perpajakan"
+        purpose="Halaman kerja Tim Akuntansi untuk memvalidasi kesesuaian nominal tagihan, perhitungan DPP/PPN/PPh, nomor & tanggal Faktur Pajak (e-Faktur), serta kesesuaian PO/Kontrak dan BAST sebelum penerbitan SPP."
+        tip="Klik tombol Validasi pada baris antrean untuk membuka layar split-screen dokumen beserta 4 item checklist wajib."
+        steps={[
+          {
+            title: "Lulus Admin & PIC",
+            description:
+              "Berkas telah lolos pemeriksaan fisik Admin dan verifikasi substansi PIC Usaha.",
+            badge: "Selesai",
+            status: "completed",
+          },
+          {
+            title: "Validasi Akuntansi",
+            description:
+              "Periksa nominal, DPP/PPN/PPh, e-Faktur Pajak, dan PO/Kontrak. Lulus → lanjut ke SPP; Temuan → kembalikan terarah.",
+            badge: "Anda di sini • 2 HK",
+            status: "active",
+          },
+          {
+            title: "Penerbitan SPP",
+            description:
+              "Pengajuan yang dinyatakan Validasi Lulus otomatis masuk ke meja Penyusunan SPP Digital.",
+            badge: "Tahap Final • 1 HK",
+          },
+        ]}
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Badge variant="default" className="gap-1.5 px-3 py-1.5 text-xs">
+              <Clock className="size-3.5" />
+              Target SLA Akuntansi: 2 Hari Kerja
+            </Badge>
+            <Link href="/spp">
+              <Button variant="outline" size="default" className="gap-2">
+                <QrCode className="size-4 text-brand-teal" />
+                Ke Meja Penerbitan SPP
+              </Button>
+            </Link>
+          </div>
+        }
+      />
 
       {/* RINGKASAN METRIK AKUNTANSI */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-medium">
+        <Card className="border-t-4 border-t-brand-teal bg-brand-teal/5">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
               Antrean Menunggu Validasi Akuntansi
             </CardDescription>
-            <CardTitle className="font-mono text-2xl font-bold text-primary">
+            <CardTitle className="font-mono text-3xl font-extrabold text-brand-teal">
               {activeQueue.length}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-[11px] text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground">
             Tahap <code>ACCOUNTING_APPROVAL</code> (SLA Aktif: Maks. 2 HK)
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-medium">
+        <Card className="border-t-4 border-t-amber-500">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
               Temuan Pajak / Akuntansi (Menunggu Revisi)
             </CardDescription>
-            <CardTitle className="font-mono text-2xl font-bold text-amber-600 dark:text-amber-400">
+            <CardTitle className="font-mono text-3xl font-extrabold text-amber-600 dark:text-amber-400">
               {
                 allRows.filter((r) => r.current_stage === "REVISION_ACCOUNTING")
                   .length
               }
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-[11px] text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground">
             Tahap <code>REVISION_ACCOUNTING</code> (Timer SLA Di-PAUSE)
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-medium">
+        <Card className="border-t-4 border-t-emerald-600 dark:border-t-emerald-400">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
               Validasi Lulus (Penyusunan SPP / Selesai)
             </CardDescription>
-            <CardTitle className="font-mono text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+            <CardTitle className="font-mono text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
               {
                 allRows.filter(
                   (r) =>
@@ -175,7 +193,7 @@ async function AkuntansiContent() {
               }
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-[11px] text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground">
             Siap diterbitkan SPP atau sudah selesai
           </CardContent>
         </Card>
@@ -198,15 +216,11 @@ async function AkuntansiContent() {
         </CardHeader>
         <CardContent>
           {activeQueue.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-              <FileText className="size-9 stroke-1 opacity-60" />
-              <p className="font-medium">
-                Tidak ada pengajuan pada antrean Validasi Akuntansi saat ini.
-              </p>
-              <p className="text-xs">
-                Pengajuan akan otomatis masuk setelah disetujui oleh PIC Usaha.
-              </p>
-            </div>
+            <EmptyState
+              icon={FileSpreadsheet}
+              title="Antrean Validasi Akuntansi Kosong"
+              description="Pengajuan akan otomatis masuk ke meja Akuntansi segera setelah disetujui oleh PIC Usaha."
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -267,7 +281,7 @@ async function AkuntansiContent() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="font-mono text-xs font-semibold">
+                        <TableCell className="text-xs font-semibold whitespace-nowrap tabular-nums">
                           {formatRupiah(Number(row.amount))}
                         </TableCell>
 
@@ -433,14 +447,7 @@ async function AkuntansiContent() {
 
 export default function AkuntansiPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Antrean Validasi Akuntansi...
-        </div>
-      }
-    >
+    <Suspense fallback={<QueuePageSkeleton />}>
       <AkuntansiContent />
     </Suspense>
   );

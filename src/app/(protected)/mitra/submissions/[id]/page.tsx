@@ -12,7 +12,6 @@ import {
   FileText,
   History,
   Info,
-  Loader2,
   PackageCheck,
   PauseCircle,
   ShieldCheck,
@@ -33,6 +32,8 @@ import {
 } from "@/lib/constants";
 import { isStagePaused } from "@/lib/sla";
 import { DocumentViewer } from "@/components/documents/document-viewer";
+import { SetBreadcrumbLabel } from "@/components/layout/breadcrumb-context";
+import { PageGuide } from "@/components/layout/page-guide";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +43,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { DetailPageSkeleton } from "@/components/ui/page-skeletons";
 import { MitraRevisionPanel } from "./mitra-revision-panel";
 
 interface StepConfig {
@@ -338,20 +340,52 @@ async function MitraSubmissionDetailContent({
 
   return (
     <div className="space-y-6">
-      {/* HEADER */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-1">
+      <SetBreadcrumbLabel label={submission.agenda_no} />
+
+      <PageGuide
+        eyebrow="Detail & Tracking Pengajuan Mitra"
+        title={`Detail Tagihan ${submission.agenda_no}`}
+        purpose={`No. Invoice: ${submission.invoice_no} • ${submission.work_type}. Gunakan halaman ini untuk memantau posisi berkas pada 6 tahap verifikasi, membaca instruksi kirim fisik atau revisi, meninjau dokumen, dan mengunduh bukti SPP saat selesai.`}
+        defaultCollapsed={true}
+        tip={
+          isInRevisionStage
+            ? "Silakan unggah dokumen perbaikan pada panel revisi di bawah lalu klik Kirim Ulang Pengajuan."
+            : paused
+            ? "Status saat ini Menunggu Mitra — timer SLA internal sedang di-Pause."
+            : "Pantau timeline 6 tahap di bawah untuk melihat progres pemeriksaan tim internal."
+        }
+        topSlot={
           <Link
             href="/mitra"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" />
             Kembali ke Daftar Tagihan
           </Link>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="font-mono text-2xl font-bold tracking-tight">
-              {submission.agenda_no}
-            </h1>
+        }
+        steps={[
+          {
+            title: "Baca Banner Instruksi",
+            description:
+              "Periksa apakah berkas sedang diproses, perlu kirim hardcopy, atau memerlukan unggah revisi.",
+            badge: "Langkah 1",
+            status: "active",
+          },
+          {
+            title: "Pantau Timeline 6 Tahap",
+            description:
+              "Lihat posisi aktif pengajuan beserta target SLA tiap tahap hingga SPP selesai.",
+            badge: "Langkah 2",
+          },
+          {
+            title: "Tinjau Dokumen & Log",
+            description:
+              "Periksa pratinjau file yang terunggah, jejak audit perpindahan tahap, serta unduh PDF SPP bila sudah terbit.",
+            badge: "Langkah 3",
+          },
+        ]}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
             <Badge
               variant="outline"
               className={getFinalStatusBadgeClass(submission.final_status)}
@@ -370,29 +404,24 @@ async function MitraSubmissionDetailContent({
                 variant="outline"
                 className="gap-1 border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-300"
               >
-                <PauseCircle className="size-3" />
-                Timer SLA Di-Pause (Menunggu Mitra)
+                <PauseCircle className="size-3.5" />
+                Timer SLA Di-Pause
               </Badge>
             )}
+            {vendor && (
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-subtle/80 px-3.5 py-2 text-xs">
+                <Building2 className="size-4 text-brand-teal" />
+                <div>
+                  <p className="font-semibold text-foreground">{vendor.name}</p>
+                  <p className="text-muted-foreground">
+                    NPWP: {vendor.npwp || "-"}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground">
-            No. Invoice: <strong>{submission.invoice_no}</strong> •{" "}
-            {submission.work_type}
-          </p>
-        </div>
-
-        {vendor && (
-          <div className="flex items-center gap-2 rounded-xl border bg-background px-3.5 py-2 text-xs">
-            <Building2 className="size-4 text-primary" />
-            <div>
-              <p className="font-semibold">{vendor.name}</p>
-              <p className="text-[11px] text-muted-foreground">
-                NPWP: {vendor.npwp || "-"}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+        }
+      />
 
       {/* BANNER INSTRUKSI / TEMUAN REVISI */}
       <div
@@ -776,14 +805,7 @@ export default function MitraSubmissionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Detail &amp; Timeline Tagihan...
-        </div>
-      }
-    >
+    <Suspense fallback={<DetailPageSkeleton />}>
       <MitraSubmissionDetailContent params={params} />
     </Suspense>
   );

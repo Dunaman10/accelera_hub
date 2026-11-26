@@ -13,9 +13,11 @@ import {
   FileText,
   HardDriveUpload,
   Loader2,
+  RefreshCw,
   Sparkles,
   Trash2,
   Upload,
+  UploadCloud,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { DocCategory, Vendor } from "@/types";
@@ -30,6 +32,8 @@ import {
   compressImageIfNeeded,
   uploadFileToGoogleDriveResumable,
 } from "@/lib/image-compression";
+import { cn } from "@/lib/utils";
+import { PageGuide } from "@/components/layout/page-guide";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -95,6 +99,13 @@ export function NewSubmissionForm({
   );
   const [compressingCategory, setCompressingCategory] =
     React.useState<DocCategory | null>(null);
+  const [draggingCategory, setDraggingCategory] =
+    React.useState<DocCategory | null>(null);
+  const [replacingItem, setReplacingItem] = React.useState<{
+    localId: string;
+    category: DocCategory;
+  } | null>(null);
+  const replaceInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Submit & Resumable Upload Pipeline State
   const [submitting, setSubmitting] = React.useState(false);
@@ -182,6 +193,78 @@ export function NewSubmissionForm({
   function handleRemoveFile(localId: string) {
     if (submitting) return;
     setStagedFiles((prev) => prev.filter((item) => item.localId !== localId));
+  }
+
+  function triggerReplaceFile(item: StagedDocumentItem) {
+    if (submitting || compressingCategory !== null) return;
+    setReplacingItem({ localId: item.localId, category: item.category });
+    replaceInputRef.current?.click();
+  }
+
+  async function handleReplaceFileChange(fileList: FileList | null) {
+    if (!replacingItem || !fileList || fileList.length === 0) {
+      setReplacingItem(null);
+      return;
+    }
+
+    const rawFile = fileList[0];
+    const lowerName = rawFile.name.toLowerCase();
+    const hasValidExt = ALLOWED_EXTENSIONS.some((ext) =>
+      lowerName.endsWith(ext)
+    );
+    const hasValidMime = ALLOWED_MIMES.has(rawFile.type.toLowerCase());
+
+    if (!hasValidExt && !hasValidMime) {
+      toast.error(
+        `File "${rawFile.name}" ditolak. Hanya format .pdf, .jpg, .jpeg, atau .png yang diizinkan.`
+      );
+      setReplacingItem(null);
+      return;
+    }
+
+    setCompressingCategory(replacingItem.category);
+    try {
+      const compressedResult = await compressImageIfNeeded(rawFile);
+      const processedFile = compressedResult.file;
+
+      if (processedFile.size > MAX_FILE_SIZE_BYTES) {
+        toast.error(
+          `File "${rawFile.name}" (${formatBytes(
+            processedFile.size
+          )}) melebihi batas maksimal 5 MB per file.`
+        );
+        return;
+      }
+
+      if (compressedResult.wasCompressed) {
+        toast.success(
+          `Foto "${rawFile.name}" otomatis dikompresi dari ${formatBytes(
+            compressedResult.originalSizeBytes
+          )} menjadi ${formatBytes(compressedResult.finalSizeBytes)}.`
+        );
+      }
+
+      setStagedFiles((prev) =>
+        prev.map((item) =>
+          item.localId === replacingItem.localId
+            ? {
+                ...item,
+                file: processedFile,
+                originalSizeBytes: compressedResult.originalSizeBytes,
+                finalSizeBytes: compressedResult.finalSizeBytes,
+                wasCompressed: compressedResult.wasCompressed,
+                progress: 0,
+                status: "ready",
+                errorMessage: undefined,
+              }
+            : item
+        )
+      );
+      toast.success(`File berhasil diganti dengan "${processedFile.name}".`);
+    } finally {
+      setCompressingCategory(null);
+      setReplacingItem(null);
+    }
   }
 
   function updateStagedItem(
@@ -391,39 +474,64 @@ export function NewSubmissionForm({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-1">
+      <PageGuide
+        eyebrow="Formulir Pengajuan Tagihan"
+        title="Ajukan Dokumen Tagihan Baru"
+        purpose="Gunakan formulir ini untuk mendaftarkan tagihan baru dan mengunggah berkas softcopy pendukung. Setelah terkirim, sistem langsung menerbitkan Nomor Agenda unik dan mengantrekan berkas ke Admin Accelera."
+        tip="Dokumen wajib minimal: Invoice dan BAST (format PDF/JPG/PNG, maks. 5 MB per file)."
+        topSlot={
           <Link
             href="/mitra"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" />
             Kembali ke Daftar Tagihan Mitra
           </Link>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Ajukan Dokumen Tagihan Baru
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Isi rincian invoice dan unggah dokumen softcopy pendukung untuk
-            memulai proses Pre-Check SLA 6 Hari Kerja.
-          </p>
-        </div>
-
-        {vendor && (
-          <div className="flex items-center gap-2 rounded-xl border bg-background px-3.5 py-2 text-xs shadow-2xs">
-            <Building2 className="size-4 text-primary" />
-            <div>
-              <p className="font-semibold">{vendor.name}</p>
-              <p className="text-[11px] text-muted-foreground">
-                NPWP: {vendor.npwp || "-"}
-              </p>
+        }
+        steps={[
+          {
+            title: "Isi Metadata Tagihan",
+            description:
+              "Masukkan No. Invoice unik, No. PO/Kontrak, jenis pekerjaan, dan nominal tagihan (Rp).",
+            badge: "Langkah 1",
+            status: "active",
+          },
+          {
+            title: "Unggah Softcopy Wajib",
+            description:
+              "Lampirkan file Invoice & BAST (serta Faktur Pajak / PO bila ada). Foto > 1 MB otomatis dikompresi.",
+            badge: "Langkah 2",
+          },
+          {
+            title: "Dapat Nomor Agenda",
+            description:
+              "Klik Kirim Pengajuan untuk menyimpan file ke Google Drive Private dan menerbitkan No. Agenda.",
+            badge: "Langkah 3",
+          },
+          {
+            title: "Tunggu Pre-Check (1 HK)",
+            description:
+              "Admin memeriksa softcopy Anda. Bila Pass, Anda akan menerima instruksi mengirim berkas fisik.",
+            badge: "Langkah 4",
+          },
+        ]}
+        actions={
+          vendor ? (
+            <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface-subtle/80 px-4 py-2.5 text-xs">
+              <Building2 className="size-4 text-brand-teal" />
+              <div>
+                <p className="font-semibold text-foreground">{vendor.name}</p>
+                <p className="text-muted-foreground">
+                  NPWP: {vendor.npwp || "-"}
+                </p>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          ) : undefined
+        }
+      />
 
       {!vendor && !isInternalCreator && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-xs text-destructive">
+        <div className="flex items-start gap-3 rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <div>
             <strong>Akun Belum Terhubung ke Vendor:</strong> Profil Anda belum
@@ -438,7 +546,7 @@ export function NewSubmissionForm({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileText className="size-4 text-primary" />
+              <FileText className="size-4 text-brand-teal" />
               1. Informasi &amp; Metadata Tagihan
             </CardTitle>
             <CardDescription>
@@ -447,9 +555,9 @@ export function NewSubmissionForm({
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
             {isInternalCreator && availableVendors.length > 0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="select-vendor">
                   Perusahaan Mitra / Vendor{" "}
                   <span className="text-destructive">*</span>
@@ -460,7 +568,7 @@ export function NewSubmissionForm({
                   disabled={submitting}
                   value={selectedVendorId}
                   onChange={(e) => setSelectedVendorId(e.target.value)}
-                  className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring"
+                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/35 dark:bg-card/70"
                 >
                   <option value="">-- Pilih Perusahaan Mitra --</option>
                   {availableVendors.map((v) => (
@@ -473,7 +581,7 @@ export function NewSubmissionForm({
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="invoice-no">
                   No. Invoice <span className="text-destructive">*</span>
                 </Label>
@@ -485,13 +593,13 @@ export function NewSubmissionForm({
                   value={invoiceNo}
                   onChange={(e) => setInvoiceNo(e.target.value)}
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Segmen pertama nomor invoice akan digunakan pada format Nomor
                   Agenda otomatis.
                 </p>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="contract-po-no">No. PO / Kontrak / SPK</Label>
                 <Input
                   id="contract-po-no"
@@ -504,7 +612,7 @@ export function NewSubmissionForm({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="work-type">
                   Jenis Pekerjaan / Tagihan{" "}
                   <span className="text-destructive">*</span>
@@ -519,12 +627,12 @@ export function NewSubmissionForm({
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="amount-rp">
                   Nilai Tagihan (Rp) <span className="text-destructive">*</span>
                 </Label>
                 <div className="relative">
-                  <span className="pointer-events-none absolute top-2 left-3 text-xs font-semibold text-muted-foreground">
+                  <span className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-xs font-bold text-muted-foreground">
                     Rp
                   </span>
                   <Input
@@ -540,18 +648,18 @@ export function NewSubmissionForm({
                         formatNumberInputRupiah(e.target.value)
                       )
                     }
-                    className="pl-9 font-mono font-semibold"
+                    className="pl-10 font-mono font-semibold"
                   />
                 </div>
                 {numericAmount > 0 && (
-                  <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                  <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                     Terbaca: {formatRupiah(numericAmount)}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="submission-notes">Catatan Tambahan</Label>
               <Textarea
                 id="submission-notes"
@@ -568,10 +676,10 @@ export function NewSubmissionForm({
         {/* BAGIAN 2: MULTI-FILE UPLOADER TERSTRUKTUR */}
         <Card>
           <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <HardDriveUpload className="size-4 text-primary" />
+                  <HardDriveUpload className="size-4 text-brand-teal" />
                   2. Multi-File Uploader Dokumen Penagihan
                 </CardTitle>
                 <CardDescription>
@@ -580,60 +688,106 @@ export function NewSubmissionForm({
                   file).
                 </CardDescription>
               </div>
-              <Badge variant="secondary" className="gap-1 text-xs">
-                <Sparkles className="size-3.5 text-primary" />
+              <Badge variant="secondary" className="gap-1.5 text-xs">
+                <Sparkles className="size-3.5 text-brand-teal" />
                 Auto-Compress Foto &gt; 1 MB
               </Badge>
             </div>
           </CardHeader>
 
           <CardContent className="space-y-4">
+            <input
+              ref={replaceInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              className="sr-only"
+              onChange={(e) => {
+                handleReplaceFileChange(e.target.files);
+                e.target.value = "";
+              }}
+            />
+
             {DOC_CATEGORY_META.map((meta) => {
               const categoryFiles = getFilesByCategory(meta.category);
               const isCompressing = compressingCategory === meta.category;
+              const isDragging = draggingCategory === meta.category;
               const inputId = `file-input-${meta.category}`;
 
               return (
                 <div
                   key={meta.category}
-                  className="rounded-xl border bg-muted/20 p-4 transition-colors hover:border-border"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (!submitting && !isCompressing) {
+                      setDraggingCategory(meta.category);
+                    }
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    if (draggingCategory === meta.category) {
+                      setDraggingCategory(null);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDraggingCategory(null);
+                    if (!submitting && !isCompressing) {
+                      handleSelectFiles(meta.category, e.dataTransfer.files);
+                    }
+                  }}
+                  className={cn(
+                    "rounded-2xl border-2 border-dashed p-5 transition-all",
+                    isDragging
+                      ? "border-brand-teal bg-brand-teal/10 ring-2 ring-brand-teal/25"
+                      : categoryFiles.length > 0
+                      ? "border-emerald-500/45 bg-emerald-500/6"
+                      : "border-border bg-surface-subtle/60 hover:border-brand-teal/50 hover:bg-surface-subtle"
+                  )}
                 >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-0.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-semibold">
-                          {meta.label}
-                        </span>
-                        {meta.required ? (
-                          <Badge
-                            variant="default"
-                            className="h-4 px-1.5 text-[10px]"
-                          >
-                            Wajib
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="h-4 px-1.5 text-[10px]"
-                          >
-                            Opsional
-                          </Badge>
+                  <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3.5">
+                      <div
+                        className={cn(
+                          "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl",
+                          isDragging
+                            ? "bg-brand-teal text-brand-teal-foreground"
+                            : categoryFiles.length > 0
+                            ? "bg-emerald-600/15 text-emerald-700 dark:text-emerald-300"
+                            : "bg-brand-teal/12 text-brand-teal"
                         )}
-                        {categoryFiles.length > 0 && (
-                          <Badge
-                            variant="outline"
-                            className="h-4 border-emerald-500/30 bg-emerald-500/15 px-1.5 text-[10px] text-emerald-700 dark:text-emerald-300"
-                          >
-                            {categoryFiles.length} file dipilih
-                          </Badge>
-                        )}
+                      >
+                        <UploadCloud className="size-5" />
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {meta.description}
-                      </p>
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-foreground">
+                            {meta.label}
+                          </span>
+                          {meta.required ? (
+                            <Badge variant="default">Wajib</Badge>
+                          ) : (
+                            <Badge variant="outline">Opsional</Badge>
+                          )}
+                          {categoryFiles.length > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-500/35 bg-emerald-500/12 text-emerald-700 tabular-nums dark:text-emerald-300"
+                            >
+                              {categoryFiles.length} file dipilih
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          {meta.description}
+                        </p>
+                        <p className="text-xs text-muted-foreground/90">
+                          Seret &amp; lepas file ke area ini, atau klik tombol
+                          pilih file (maks. 5 MB).
+                        </p>
+                      </div>
                     </div>
 
-                    <div>
+                    <div className="shrink-0">
                       <input
                         id={inputId}
                         type="file"
@@ -647,15 +801,15 @@ export function NewSubmissionForm({
                         className="sr-only"
                       />
                       <label htmlFor={inputId}>
-                        <span className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-input bg-background px-3 text-xs font-medium shadow-2xs transition hover:bg-muted">
+                        <span className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3.5 text-xs font-semibold text-foreground shadow-2xs transition hover:border-brand-teal/60 hover:bg-accent hover:text-accent-foreground">
                           {isCompressing ? (
                             <>
-                              <Loader2 className="size-3.5 animate-spin" />
+                              <Loader2 className="size-3.5 animate-spin text-brand-teal" />
                               Mengompresi...
                             </>
                           ) : (
                             <>
-                              <Upload className="size-3.5" />
+                              <Upload className="size-3.5 text-brand-teal" />
                               Pilih File {meta.category}
                             </>
                           )}
@@ -666,90 +820,123 @@ export function NewSubmissionForm({
 
                   {/* Daftar file yang sudah dipilih pada kategori ini */}
                   {categoryFiles.length > 0 && (
-                    <div className="mt-3 space-y-2 border-t pt-3">
-                      {categoryFiles.map((item) => (
-                        <div
-                          key={item.localId}
-                          className="rounded-lg border bg-background p-2.5 text-xs"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex min-w-0 items-center gap-2">
-                              {item.file.type.startsWith("image/") ? (
-                                <FileImage className="size-4 shrink-0 text-sky-600" />
-                              ) : (
-                                <FileCheck className="size-4 shrink-0 text-primary" />
-                              )}
-                              <div className="min-w-0">
-                                <p className="truncate font-medium">
-                                  {item.file.name}
-                                </p>
-                                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                                  <span>
-                                    {formatBytes(item.finalSizeBytes)}
-                                  </span>
-                                  {item.wasCompressed && (
-                                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                      (Terkompresi dari{" "}
-                                      {formatBytes(item.originalSizeBytes)})
+                    <div className="mt-4 space-y-2.5 border-t border-border/80 pt-3.5">
+                      {categoryFiles.map((item) => {
+                        const savedPct =
+                          item.wasCompressed && item.originalSizeBytes > 0
+                            ? Math.max(
+                                1,
+                                Math.round(
+                                  ((item.originalSizeBytes -
+                                    item.finalSizeBytes) /
+                                    item.originalSizeBytes) *
+                                    100
+                                )
+                              )
+                            : 0;
+
+                        return (
+                          <div
+                            key={item.localId}
+                            className="rounded-xl border border-border bg-card p-3 text-xs shadow-2xs"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2.5">
+                              <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                                {item.file.type.startsWith("image/") ? (
+                                  <FileImage className="size-4 shrink-0 text-brand-teal" />
+                                ) : (
+                                  <FileCheck className="size-4 shrink-0 text-primary" />
+                                )}
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-foreground">
+                                    {item.file.name}
+                                  </p>
+                                  <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground tabular-nums">
+                                    <span className="font-medium text-foreground">
+                                      {formatBytes(item.finalSizeBytes)}
                                     </span>
-                                  )}
-                                  {item.driveFileId && (
-                                    <span className="font-mono text-[10px] text-emerald-600">
-                                      • Drive ID: {item.driveFileId.slice(0, 10)}
-                                      ...
-                                    </span>
-                                  )}
+                                    {item.wasCompressed && (
+                                      <Badge
+                                        variant="outline"
+                                        className="border-emerald-500/35 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+                                      >
+                                        Kompresi -{savedPct}% (dari{" "}
+                                        {formatBytes(item.originalSizeBytes)})
+                                      </Badge>
+                                    )}
+                                    {item.driveFileId && (
+                                      <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
+                                        • Drive ID:{" "}
+                                        {item.driveFileId.slice(0, 10)}...
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                {item.status === "done" && (
+                                  <Badge
+                                    variant="outline"
+                                    className="gap-1 border-emerald-500/35 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+                                  >
+                                    <CheckCircle2 className="size-3" />
+                                    Terunggah
+                                  </Badge>
+                                )}
+                                {item.status === "uploading" && (
+                                  <span className="font-mono text-xs font-bold text-brand-teal tabular-nums">
+                                    {item.progress}%
+                                  </span>
+                                )}
+                                {!submitting && (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="xs"
+                                      onClick={() => triggerReplaceFile(item)}
+                                      className="gap-1"
+                                      title="Ganti file ini"
+                                    >
+                                      <RefreshCw className="size-3" />
+                                      Ganti
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-xs"
+                                      onClick={() =>
+                                        handleRemoveFile(item.localId)
+                                      }
+                                      title="Hapus file"
+                                    >
+                                      <Trash2 className="size-3.5 text-destructive" />
+                                    </Button>
+                                  </>
+                                )}
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              {item.status === "done" && (
-                                <Badge
-                                  variant="outline"
-                                  className="gap-1 border-emerald-500/30 bg-emerald-500/15 text-emerald-700"
-                                >
-                                  <CheckCircle2 className="size-3" />
-                                  Terunggah
-                                </Badge>
-                              )}
-                              {item.status === "uploading" && (
-                                <span className="font-mono text-xs font-semibold text-primary">
-                                  {item.progress}%
-                                </span>
-                              )}
-                              {!submitting && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon-xs"
-                                  onClick={() => handleRemoveFile(item.localId)}
-                                  title="Hapus file"
-                                >
-                                  <Trash2 className="size-3.5 text-destructive" />
-                                </Button>
-                              )}
-                            </div>
+                            {/* Progress Bar Resumable Upload */}
+                            {(item.status === "uploading" ||
+                              item.status === "done") && (
+                              <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className="h-full bg-brand-teal transition-all duration-200"
+                                  style={{ width: `${item.progress}%` }}
+                                />
+                              </div>
+                            )}
+
+                            {item.errorMessage && (
+                              <p className="mt-1.5 text-xs font-medium text-destructive">
+                                {item.errorMessage}
+                              </p>
+                            )}
                           </div>
-
-                          {/* Progress Bar Resumable Upload */}
-                          {(item.status === "uploading" ||
-                            item.status === "done") && (
-                            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full bg-primary transition-all duration-200"
-                                style={{ width: `${item.progress}%` }}
-                              />
-                            </div>
-                          )}
-
-                          {item.errorMessage && (
-                            <p className="mt-1.5 text-[11px] font-medium text-destructive">
-                              {item.errorMessage}
-                            </p>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -757,23 +944,25 @@ export function NewSubmissionForm({
             })}
           </CardContent>
 
-          <CardFooter className="flex flex-col items-stretch justify-between gap-3 border-t bg-muted/30 sm:flex-row sm:items-center">
-            <div className="text-xs text-muted-foreground">
+          <CardFooter className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+            <div className="text-sm text-muted-foreground">
               {submitStepText ? (
-                <span className="inline-flex items-center gap-2 font-medium text-primary">
-                  <Loader2 className="size-3.5 animate-spin" />
+                <span className="inline-flex items-center gap-2 font-semibold text-primary">
+                  <Loader2 className="size-4 animate-spin" />
                   {submitStepText}
                 </span>
               ) : (
                 <span>
                   Total dokumen siap diunggah:{" "}
-                  <strong>{stagedFiles.length} file</strong> (Wajib: INVOICE
-                  &amp; BAST)
+                  <strong className="text-foreground">
+                    {stagedFiles.length} file
+                  </strong>{" "}
+                  (Wajib: INVOICE &amp; BAST)
                 </span>
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-end gap-2.5">
               <Link href="/mitra">
                 <Button type="button" variant="outline" disabled={submitting}>
                   Batal

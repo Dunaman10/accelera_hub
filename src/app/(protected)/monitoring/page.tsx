@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { Loader2 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import { computeSubmissionSlaFromLogs } from "@/lib/sla";
 import { fetchHolidayDateStrings } from "@/lib/sla/server";
 import type { BillingSubmission, StageLog, Vendor } from "@/types";
+import { TablePageSkeleton } from "@/components/ui/page-skeletons";
 import {
   MonitoringTableClient,
   type MonitoringSubmissionRow,
@@ -117,14 +117,7 @@ async function MonitoringPageContent() {
 
 export default function MonitoringPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Tabel Monitoring 23 Kolom...
-        </div>
-      }
-    >
+    <Suspense fallback={<TablePageSkeleton />}>
       <MonitoringPageContent />
     </Suspense>
   );

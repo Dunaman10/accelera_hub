@@ -25,6 +25,16 @@ import {
   saveVendorAction,
   toggleVendorActiveAction,
 } from "./actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +52,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -53,6 +64,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { PageGuide } from "@/components/layout/page-guide";
 
 interface VendorsClientProps {
   initialVendors: Vendor[];
@@ -82,6 +94,11 @@ export function VendorsClient({
   const [isActive, setIsActive] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [togglingId, setTogglingId] = React.useState<string | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [confirmToggleVendor, setConfirmToggleVendor] =
+    React.useState<Vendor | null>(null);
+  const [confirmDeleteVendor, setConfirmDeleteVendor] =
+    React.useState<Vendor | null>(null);
 
   React.useEffect(() => {
     setVendors(initialVendors);
@@ -194,59 +211,79 @@ export function VendorsClient({
   }
 
   async function handleDeleteVendor(vendor: Vendor) {
-    if (
-      !window.confirm(
-        `Hapus permanen Mitra "${vendor.name}"? Pastikan belum ada pengajuan tagihan terkait.`
-      )
-    ) {
-      return;
-    }
+    setDeletingId(vendor.id);
+    try {
+      const result = await deleteVendorAction(vendor.id);
+      if (!result.ok) {
+        toast.error(result.error ?? "Gagal menghapus Mitra.");
+        return;
+      }
 
-    const result = await deleteVendorAction(vendor.id);
-    if (!result.ok) {
-      toast.error(result.error ?? "Gagal menghapus Mitra.");
-      return;
+      setVendors((prev) => prev.filter((v) => v.id !== vendor.id));
+      toast.success(`Mitra "${vendor.name}" telah dihapus.`);
+      router.refresh();
+    } finally {
+      setDeletingId(null);
     }
-
-    setVendors((prev) => prev.filter((v) => v.id !== vendor.id));
-    toast.success(`Mitra "${vendor.name}" telah dihapus.`);
-    router.refresh();
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Master Data Vendor / Mitra
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Kelola direktori perusahaan Mitra, NPWP, kontak PIC, dan status
-            keaktifan pengajuan tagihan.
-          </p>
-        </div>
-
-        <Button onClick={openCreateDialog} size="lg" className="gap-2">
-          <Plus className="size-4" />
-          Tambah Mitra Baru
-        </Button>
-      </div>
+      <PageGuide
+        eyebrow="Pengaturan Master Data"
+        title="Master Data Vendor / Mitra"
+        purpose="Direktori resmi perusahaan Mitra yang menjadi dasar pendaftaran akun, validasi NPWP/perpajakan, dan kontak WhatsApp/Email tindak lanjut SLA penagihan."
+        tip="Daftarkan perusahaan Mitra terlebih dahulu di sini sebelum membuat akun login Mitra pada menu Manajemen User."
+        steps={[
+          {
+            title: "Tambah Data Mitra",
+            description:
+              "Klik Tambah Mitra Baru lalu lengkapi Nama Perusahaan, NPWP, dan alamat resmi.",
+            badge: "Langkah 1",
+            status: "active",
+          },
+          {
+            title: "Isi Kontak PIC & WA",
+            description:
+              "Simpan nama PIC, nomor WhatsApp, dan email agar tombol follow-up WA & notifikasi berjalan otomatis.",
+            badge: "Langkah 2",
+          },
+          {
+            title: "Kaitkan Akun User",
+            description:
+              "Buka menu Manajemen User untuk membuat akun login Mitra yang terhubung ke perusahaan ini.",
+            badge: "Langkah 3",
+          },
+          {
+            title: "Kelola Status Aktif",
+            description:
+              "Nonaktifkan Mitra bila kerja sama berakhir agar tidak dapat membuat pengajuan tagihan baru.",
+            badge: "Langkah 4",
+          },
+        ]}
+        actions={
+          <Button onClick={openCreateDialog} size="lg" className="gap-2">
+            <Plus className="size-4" />
+            Tambah Mitra Baru
+          </Button>
+        }
+      />
 
       {/* FILTER & SEARCH BAR */}
       <Card>
-        <CardContent className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <CardContent className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
               placeholder="Cari nama perusahaan, NPWP, nama PIC, WhatsApp, atau email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="pl-10"
             />
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant={statusFilter === "ALL" ? "default" : "outline"}
@@ -289,10 +326,11 @@ export function VendorsClient({
         </CardHeader>
         <CardContent>
           {filteredVendors.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-sm text-muted-foreground">
-              <Building2 className="size-8 stroke-1" />
-              <p>Tidak ada data Mitra yang cocok dengan filter pencarian.</p>
-            </div>
+            <EmptyState
+              icon={Building2}
+              title="Tidak ada data Mitra yang cocok"
+              description="Coba ubah filter status aktif/nonaktif atau kata kunci pencarian Anda."
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -388,7 +426,7 @@ export function VendorsClient({
                           variant={vendor.is_active ? "ghost" : "secondary"}
                           size="sm"
                           disabled={togglingId === vendor.id}
-                          onClick={() => handleToggleActive(vendor)}
+                          onClick={() => setConfirmToggleVendor(vendor)}
                           className="gap-1 text-xs"
                         >
                           {togglingId === vendor.id ? (
@@ -403,10 +441,15 @@ export function VendorsClient({
                             type="button"
                             variant="destructive"
                             size="icon-sm"
-                            onClick={() => handleDeleteVendor(vendor)}
+                            disabled={deletingId === vendor.id}
+                            onClick={() => setConfirmDeleteVendor(vendor)}
                             title="Hapus Mitra"
                           >
-                            <Trash2 className="size-3.5" />
+                            {deletingId === vendor.id ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-3.5" />
+                            )}
                           </Button>
                         )}
                       </div>
@@ -542,6 +585,82 @@ export function VendorsClient({
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={confirmToggleVendor !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmToggleVendor(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmToggleVendor?.is_active
+                ? "Nonaktifkan Mitra / Vendor?"
+                : "Aktifkan Kembali Mitra / Vendor?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmToggleVendor?.is_active
+                ? `Mitra "${confirmToggleVendor.name}" tidak akan dapat membuat pengajuan tagihan baru selama berstatus Nonaktif.`
+                : `Mitra "${confirmToggleVendor?.name}" akan diaktifkan kembali untuk pengajuan tagihan.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={togglingId !== null}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant={confirmToggleVendor?.is_active ? "destructive" : "default"}
+              disabled={togglingId !== null}
+              onClick={() => {
+                if (!confirmToggleVendor) return;
+                const target = confirmToggleVendor;
+                setConfirmToggleVendor(null);
+                void handleToggleActive(target);
+              }}
+            >
+              {confirmToggleVendor?.is_active
+                ? "Ya, Nonaktifkan"
+                : "Ya, Aktifkan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmDeleteVendor !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeleteVendor(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Permanen Mitra?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Mitra <strong>{confirmDeleteVendor?.name}</strong> akan dihapus
+              secara permanen. Pastikan belum ada pengajuan tagihan terkait
+              pada Mitra ini.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingId !== null}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deletingId !== null}
+              onClick={() => {
+                if (!confirmDeleteVendor) return;
+                const target = confirmDeleteVendor;
+                setConfirmDeleteVendor(null);
+                void handleDeleteVendor(target);
+              }}
+            >
+              Ya, Hapus Permanen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

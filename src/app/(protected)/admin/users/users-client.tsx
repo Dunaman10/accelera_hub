@@ -24,6 +24,16 @@ import {
   createOrInviteUserAction,
   updateUserProfileAction,
 } from "./actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +51,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -51,6 +62,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageGuide } from "@/components/layout/page-guide";
 
 const ALL_ROLES: UserRole[] = [
   "mitra",
@@ -92,6 +104,9 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
   const [editVendorId, setEditVendorId] = React.useState("");
   const [editActive, setEditActive] = React.useState(true);
   const [updating, setUpdating] = React.useState(false);
+  const [togglingId, setTogglingId] = React.useState<string | null>(null);
+  const [confirmToggleProfile, setConfirmToggleProfile] =
+    React.useState<Profile | null>(null);
 
   React.useEffect(() => {
     setProfiles(initialProfiles);
@@ -218,65 +233,93 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
   }
 
   async function handleQuickToggleActive(profile: Profile) {
-    const nextState = !profile.is_active;
-    const result = await updateUserProfileAction({
-      id: profile.id,
-      full_name: profile.full_name,
-      role: profile.role,
-      vendor_id: profile.vendor_id,
-      is_active: nextState,
-    });
+    setTogglingId(profile.id);
+    try {
+      const nextState = !profile.is_active;
+      const result = await updateUserProfileAction({
+        id: profile.id,
+        full_name: profile.full_name,
+        role: profile.role,
+        vendor_id: profile.vendor_id,
+        is_active: nextState,
+      });
 
-    if (!result.ok || !result.data) {
-      toast.error(result.error ?? "Gagal mengubah status akun.");
-      return;
+      if (!result.ok || !result.data) {
+        toast.error(result.error ?? "Gagal mengubah status akun.");
+        return;
+      }
+
+      setProfiles((prev) =>
+        prev.map((item) => (item.id === profile.id ? result.data! : item))
+      );
+      toast.success(
+        `Akun ${profile.full_name} diubah menjadi ${
+          nextState ? "Aktif" : "Nonaktif"
+        }.`
+      );
+      router.refresh();
+    } finally {
+      setTogglingId(null);
     }
-
-    setProfiles((prev) =>
-      prev.map((item) => (item.id === profile.id ? result.data! : item))
-    );
-    toast.success(
-      `Akun ${profile.full_name} diubah menjadi ${
-        nextState ? "Aktif" : "Nonaktif"
-      }.`
-    );
-    router.refresh();
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Manajemen User &amp; Akses RBAC (Invite-Only)
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Daftarkan akun Mitra atau Tim Internal menggunakan Service Role Key
-            serta atur penugasan role dan perusahaan vendor.
-          </p>
-        </div>
-
-        <Button onClick={openCreateModal} size="lg" className="gap-2">
-          <UserPlus className="size-4" />
-          Buat / Undang User Baru
-        </Button>
-      </div>
+      <PageGuide
+        eyebrow="Manajemen Akses Invite-Only"
+        title="Manajemen User & Hak Akses RBAC"
+        purpose="Mendaftarkan akun Mitra maupun Tim Internal (Admin Accelera, PIC Usaha, Akuntansi, Divisi Usaha) secara terkendali serta mengaitkan setiap akun Mitra dengan perusahaannya."
+        tip="Setiap akun role Mitra wajib memiliki relasi Perusahaan Vendor agar isolasi data (RLS) berjalan tepat."
+        steps={[
+          {
+            title: "Siapkan Data Vendor",
+            description:
+              "Khusus akun Mitra, pastikan perusahaannya sudah aktif pada halaman Master Vendor.",
+            badge: "Langkah 1",
+            status: "active",
+          },
+          {
+            title: "Buat / Undang User",
+            description:
+              "Pilih buat akun langsung dengan password awal atau kirim undangan aktivasi lewat email.",
+            badge: "Langkah 2",
+          },
+          {
+            title: "Tetapkan Role RBAC",
+            description:
+              "Tentukan peran pengguna (Mitra, Admin, PIC Usaha, Akuntansi, Divisi Usaha, atau Super Admin).",
+            badge: "Langkah 3",
+          },
+          {
+            title: "Kontrol Status Aktif",
+            description:
+              "Ubah role, perbarui relasi vendor, atau nonaktifkan akses kapan saja langsung dari tabel.",
+            badge: "Langkah 4",
+          },
+        ]}
+        actions={
+          <Button onClick={openCreateModal} size="lg" className="gap-2">
+            <UserPlus className="size-4" />
+            Buat / Undang User Baru
+          </Button>
+        }
+      />
 
       {/* FILTER & PENCARIAN */}
       <Card>
-        <CardContent className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <CardContent className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
               placeholder="Cari nama user, email, role, atau perusahaan Mitra..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="pl-10"
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <Label htmlFor="role-filter" className="text-xs whitespace-nowrap">
               Filter Role:
             </Label>
@@ -286,7 +329,7 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
               onChange={(e) =>
                 setRoleFilter(e.target.value as UserRole | "ALL")
               }
-              className="h-8 rounded-lg border border-input bg-background px-2.5 text-xs outline-none focus-visible:border-ring"
+              className="h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring dark:bg-card/70"
             >
               <option value="ALL">Semua Role ({profiles.length})</option>
               {ALL_ROLES.map((r) => (
@@ -313,10 +356,11 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
         </CardHeader>
         <CardContent>
           {filteredProfiles.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-sm text-muted-foreground">
-              <Users className="size-8 stroke-1" />
-              <p>Tidak ditemukan akun pengguna yang cocok.</p>
-            </div>
+            <EmptyState
+              icon={Users}
+              title="Tidak ditemukan akun pengguna yang cocok"
+              description="Coba ubah filter role atau kata kunci pencarian nama/email."
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -403,10 +447,15 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
                             type="button"
                             variant={p.is_active ? "ghost" : "secondary"}
                             size="sm"
-                            onClick={() => handleQuickToggleActive(p)}
+                            disabled={togglingId === p.id}
+                            onClick={() => setConfirmToggleProfile(p)}
                             className="gap-1 text-xs"
                           >
-                            <Power className="size-3.5" />
+                            {togglingId === p.id ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Power className="size-3.5" />
+                            )}
                             {p.is_active ? "Nonaktifkan" : "Aktifkan"}
                           </Button>
                         </div>
@@ -478,7 +527,7 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
                 Alamat Email <span className="text-destructive">*</span>
               </Label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
+                <Mail className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="user-email"
                   type="email"
@@ -486,12 +535,12 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
                   placeholder="user@perusahaan.co.id"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-9"
+                  className="pl-10"
                 />
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3.5 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="user-role">
                   Role Pengguna <span className="text-destructive">*</span>
@@ -500,7 +549,7 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
                   id="user-role"
                   value={role}
                   onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="flex h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring"
+                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring dark:bg-card/70"
                 >
                   {ALL_ROLES.map((r) => (
                     <option key={r} value={r}>
@@ -520,7 +569,7 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
                     required
                     value={vendorId}
                     onChange={(e) => setVendorId(e.target.value)}
-                    className="flex h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring"
+                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring dark:bg-card/70"
                   >
                     <option value="">-- Pilih Perusahaan Mitra --</option>
                     {vendors.map((v) => (
@@ -615,7 +664,7 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
                 id="edit-role"
                 value={editRole}
                 onChange={(e) => setEditRole(e.target.value as UserRole)}
-                className="flex h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring"
+                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring dark:bg-card/70"
               >
                 {ALL_ROLES.map((r) => (
                   <option key={r} value={r}>
@@ -635,7 +684,7 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
                   required
                   value={editVendorId}
                   onChange={(e) => setEditVendorId(e.target.value)}
-                  className="flex h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring"
+                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring dark:bg-card/70"
                 >
                   <option value="">-- Pilih Perusahaan Mitra --</option>
                   {vendors.map((v) => (
@@ -684,6 +733,49 @@ export function UsersClient({ initialProfiles, vendors }: UsersClientProps) {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={confirmToggleProfile !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmToggleProfile(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmToggleProfile?.is_active
+                ? "Nonaktifkan Akun Pengguna?"
+                : "Aktifkan Kembali Akun Pengguna?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmToggleProfile?.is_active
+                ? `Pengguna "${confirmToggleProfile.full_name}" (${confirmToggleProfile.email}) tidak akan dapat mengakses portal Accelera HUB sampai diaktifkan kembali.`
+                : `Pengguna "${confirmToggleProfile?.full_name}" (${confirmToggleProfile?.email}) akan kembali memiliki akses masuk sesuai rolenya.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={togglingId !== null}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant={
+                confirmToggleProfile?.is_active ? "destructive" : "default"
+              }
+              disabled={togglingId !== null}
+              onClick={() => {
+                if (!confirmToggleProfile) return;
+                const target = confirmToggleProfile;
+                setConfirmToggleProfile(null);
+                void handleQuickToggleActive(target);
+              }}
+            >
+              {confirmToggleProfile?.is_active
+                ? "Ya, Nonaktifkan"
+                : "Ya, Aktifkan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

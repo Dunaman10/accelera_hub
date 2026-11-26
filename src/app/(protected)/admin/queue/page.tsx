@@ -1,7 +1,7 @@
 import { Suspense } from "react";
-import { Loader2 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { QueuePageSkeleton } from "@/components/ui/page-skeletons";
 import {
   AdminQueueClient,
   type AdminQueueTabKey,
@@ -64,14 +64,7 @@ export default function AdminQueuePage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Antrean Kerja Admin Accelera...
-        </div>
-      }
-    >
+    <Suspense fallback={<QueuePageSkeleton />}>
       <AdminQueueContent searchParams={searchParams} />
     </Suspense>
   );

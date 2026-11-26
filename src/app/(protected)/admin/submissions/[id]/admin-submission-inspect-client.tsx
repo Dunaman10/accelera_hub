@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  Ban,
   Building2,
   CalendarClock,
   CheckCircle2,
@@ -18,12 +19,10 @@ import {
   Loader2,
   Lock,
   MessageCircle,
-  PackageCheck,
   PauseCircle,
   RefreshCcw,
   Send,
   ShieldAlert,
-  ShieldCheck,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -39,6 +38,7 @@ import type {
 import type { TransitionActionType } from "@/app/api/submissions/[id]/transition/route";
 import {
   formatDateTimeWIB,
+  formatDateWIB,
   formatRupiah,
   getFinalStatusBadgeClass,
   getSlaStatusBadgeClass,
@@ -47,6 +47,18 @@ import {
 import { isStagePaused } from "@/lib/sla";
 import { buildWhatsappFollowupUrl } from "@/lib/notifications";
 import { DocumentViewer } from "@/components/documents/document-viewer";
+import { SetBreadcrumbLabel } from "@/components/layout/breadcrumb-context";
+import { PageGuide } from "@/components/layout/page-guide";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -84,6 +96,10 @@ export function AdminSubmissionInspectClient({
   const router = useRouter();
   const [submittingAction, setSubmittingAction] =
     React.useState<TransitionActionType | null>(null);
+  const [confirmAction, setConfirmAction] =
+    React.useState<TransitionActionType | null>(null);
+  const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false);
+  const [cancelReason, setCancelReason] = React.useState("");
 
   // State Form Keputusan
   const [findingNotes, setFindingNotes] = React.useState<string>(
@@ -96,6 +112,9 @@ export function AdminSubmissionInspectClient({
   );
   const [followupPic, setFollowupPic] = React.useState<string>(
     submission.followup_pic ?? "Mitra / Vendor"
+  );
+  const [targetFinishDate, setTargetFinishDate] = React.useState<string>(
+    submission.target_finish_date ?? ""
   );
   const [hardcopyReceivedAt, setHardcopyReceivedAt] = React.useState<string>(
     () => getDefaultLocalDateTimeInput(submission.hardcopy_date)
@@ -131,6 +150,11 @@ export function AdminSubmissionInspectClient({
   const stage = submission.current_stage;
   const paused =
     isStagePaused(stage) || submission.final_status === "Menunggu Mitra";
+  const canCancelSubmission =
+    stage !== "COMPLETED" &&
+    stage !== "CANCELLED" &&
+    submission.final_status !== "Selesai" &&
+    submission.final_status !== "Dibatalkan";
 
   // ATURAN BLOKIR KETAT:
   // Tombol "Teruskan ke PIC Usaha" hanya aktif jika:
@@ -146,6 +170,36 @@ export function AdminSubmissionInspectClient({
 
   const canRequestPhysicalRevision =
     physicalStatus === "Tidak Lengkap" || verificationStatus === "Tidak Lulus";
+
+  function requestConfirmedTransition(action: TransitionActionType) {
+    if (action === "precheck_revision" && !findingNotes.trim()) {
+      toast.error(
+        "Catatan Temuan / Kekurangan wajib diisi sebelum meminta Revisi Softcopy."
+      );
+      return;
+    }
+    if (action === "physical_forward_pic" && !canForwardToPicUsaha) {
+      toast.error(
+        "Blokir State Machine: Pastikan Pre-Check Softcopy = Pass, Tanggal Hardcopy terisi, Cek Fisik = Lengkap, dan Verifikasi = Lulus."
+      );
+      return;
+    }
+    if (action === "physical_revision") {
+      if (!canRequestPhysicalRevision) {
+        toast.error(
+          "Ubah status Cek Fisik menjadi 'Tidak Lengkap' atau Verifikasi menjadi 'Tidak Lulus' untuk meminta revisi."
+        );
+        return;
+      }
+      if (!findingNotes.trim()) {
+        toast.error(
+          "Catatan Temuan & Tindak Lanjut wajib diisi untuk Revisi Hardcopy."
+        );
+        return;
+      }
+    }
+    setConfirmAction(action);
+  }
 
   async function executeTransition(
     action: TransitionActionType,
@@ -210,6 +264,7 @@ export function AdminSubmissionInspectClient({
             followup_action: followupAction,
             follow_up_action: followupAction,
             followup_pic: followupPic.trim() || null,
+            target_finish_date: targetFinishDate.trim() || null,
             hardcopy_date: hardcopyReceivedAt
               ? new Date(hardcopyReceivedAt).toISOString()
               : submission.hardcopy_date,
@@ -248,24 +303,47 @@ export function AdminSubmissionInspectClient({
   }
 
   return (
-    <div className="space-y-4">
-      {/* TOP BAR: INFO AGENDA, MITRA, STATUS & TIMER SLA */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background p-4 shadow-2xs">
-        <div className="space-y-1">
+    <div className="space-y-5">
+      <SetBreadcrumbLabel label={submission.agenda_no} />
+
+      <PageGuide
+        eyebrow={`Pemeriksaan Admin Accelera • ${STAGE_LABELS[stage]}`}
+        title={`Layar Pemeriksaan ${submission.agenda_no}`}
+        purpose="Meja kerja split-screen untuk membandingkan dokumen softcopy (kiri) dengan berkas fisik & metadata (kanan), lalu mengambil keputusan tahap aktif secara berurutan tanpa lompatan status."
+        defaultCollapsed={true}
+        tip="Panel kiri menampilkan pratinjau private Google Drive dengan fitur zoom, rotasi, dan riwayat versi."
+        topSlot={
           <Link
             href="/admin/queue"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" />
             Kembali ke Antrean Kerja Admin
           </Link>
+        }
+        steps={[
+          {
+            title: "Periksa Dokumen (Kiri)",
+            description:
+              "Buka Invoice, BAST, Faktur Pajak, dan PO/Kontrak pada Document Viewer di sisi kiri.",
+            badge: "Langkah 1",
+            status: "active",
+          },
+          {
+            title: "Putuskan di Panel Kanan",
+            description:
+              "Lakukan Pre-Check Pass/Revisi, catat terima hardcopy, atau teruskan ke PIC Usaha bila Cek Fisik Lengkap & Lulus.",
+            badge: "Langkah 2",
+          },
+          {
+            title: "Update SLA & Notifikasi",
+            description:
+              "Sistem otomatis memindahkan tahap, menghitung/mem-pause SLA, dan mengirim notifikasi ke pihak terkait.",
+            badge: "Otomatis",
+          },
+        ]}
+        actions={
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-mono text-xl font-bold tracking-tight">
-              {submission.agenda_no}
-            </h1>
-            <Badge variant="outline" className="font-semibold">
-              {STAGE_LABELS[stage]}
-            </Badge>
             <Badge
               variant="outline"
               className={getFinalStatusBadgeClass(submission.final_status)}
@@ -284,7 +362,7 @@ export function AdminSubmissionInspectClient({
                 variant="outline"
                 className="gap-1 border-amber-500/40 bg-amber-500/15 text-amber-800 dark:text-amber-300"
               >
-                <PauseCircle className="size-3" />
+                <PauseCircle className="size-3.5" />
                 Timer SLA Di-PAUSE
               </Badge>
             ) : (
@@ -292,42 +370,62 @@ export function AdminSubmissionInspectClient({
                 variant="outline"
                 className="gap-1 border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
               >
-                <Clock className="size-3" />
-                Timer SLA Internal Aktif
+                <Clock className="size-3.5" />
+                Timer SLA Aktif
               </Badge>
             )}
-          </div>
-        </div>
+            {vendor && (
+              <>
+                <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface-subtle/80 px-3.5 py-2 text-xs">
+                  <Building2 className="size-4 text-brand-teal" />
+                  <div>
+                    <p className="font-semibold text-foreground">
+                      {vendor.name}
+                    </p>
+                    <p className="text-muted-foreground">
+                      NPWP: {vendor.npwp || "-"} • PIC: {vendor.pic_name || "-"}
+                      {vendor.whatsapp_number
+                        ? ` (${vendor.whatsapp_number})`
+                        : ""}
+                    </p>
+                  </div>
+                </div>
 
-        {vendor && (
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-2.5 rounded-xl border bg-muted/30 px-3.5 py-2 text-xs">
-              <Building2 className="size-4 text-primary" />
-              <div>
-                <p className="font-semibold">{vendor.name}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  NPWP: {vendor.npwp || "-"} • PIC: {vendor.pic_name || "-"}
-                  {vendor.whatsapp_number ? ` (${vendor.whatsapp_number})` : ""}
-                </p>
-              </div>
-            </div>
+                <a
+                  href={buildWhatsappFollowupUrl({
+                    submission,
+                    vendor,
+                    customFindings: findingNotes,
+                  })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#25D366] px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-[#1ebe5d]"
+                >
+                  <MessageCircle className="size-4" />
+                  Hubungi Mitra via WA
+                </a>
+              </>
+            )}
 
-            <a
-              href={buildWhatsappFollowupUrl({
-                submission,
-                vendor,
-                customFindings: findingNotes,
-              })}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#25D366] px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-[#1ebe5d]"
-            >
-              <MessageCircle className="size-4" />
-              Hubungi Mitra via WA
-            </a>
+            {canCancelSubmission && (
+              <Button
+                type="button"
+                variant="outline"
+                size="default"
+                disabled={submittingAction !== null}
+                onClick={() => {
+                  setCancelReason(findingNotes);
+                  setCancelDialogOpen(true);
+                }}
+                className="gap-1.5 border-destructive/40 text-xs font-semibold text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Ban className="size-3.5" />
+                Batalkan Pengajuan
+              </Button>
+            )}
           </div>
-        )}
-      </div>
+        }
+      />
 
       {/* =====================================================================
           LAYAR PEMERIKSAAN SPLIT-SCREEN DESKTOP 2 KOLOM:
@@ -335,23 +433,23 @@ export function AdminSubmissionInspectClient({
           - Kanan 45%: Detail tagihan + Panel Aksi Keputusan State Machine
           - Mobile: Otomatis menumpuk vertikal
       ====================================================================== */}
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-5 lg:h-[calc(100vh-12rem)] lg:flex-row lg:items-stretch lg:overflow-hidden">
         {/* KOLOM KIRI (55%): PRIVATE DOCUMENT VIEWER */}
-        <div className="w-full lg:w-[55%] lg:sticky lg:top-18">
-          <DocumentViewer documents={documents} />
+        <div className="w-full lg:flex lg:h-full lg:w-[55%] lg:flex-col">
+          <DocumentViewer documents={documents} className="lg:h-full" />
         </div>
 
-        {/* KOLOM KANAN (45%): DETAIL TAGIHAN & PANEL KEPUTUSAN */}
-        <div className="w-full space-y-5 lg:w-[45%]">
+        {/* KOLOM KANAN (45%): DETAIL TAGIHAN & PANEL KEPUTUSAN (SCROLL INDEPENDEN) */}
+        <div className="w-full space-y-5 lg:h-full lg:w-[45%] lg:overflow-y-auto lg:pr-1">
           {/* 1. PANEL AKSI KEPUTUSAN SESUAI TAHAP AKTIF */}
-          <Card className="border-primary/30 shadow-xs">
-            <CardHeader className="border-b bg-primary/5 pb-3">
+          <Card className="border-brand-teal/35 shadow-xs">
+            <CardHeader className="border-b border-border bg-brand-teal/8">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <ClipboardCheck className="size-4 text-primary" />
+                  <ClipboardCheck className="size-4 text-brand-teal" />
                   Panel Keputusan Pemeriksaan
                 </CardTitle>
-                <Badge variant="default" className="text-[10px]">
+                <Badge variant="default" className="text-xs">
                   {STAGE_LABELS[stage]}
                 </Badge>
               </div>
@@ -361,7 +459,7 @@ export function AdminSubmissionInspectClient({
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-4 pt-4">
+            <CardContent className="space-y-4">
               {/* -------------------------------------------------------------
                   KONDISI A: TAHAP PRE-CHECK SOFTCOPY (SUBMITTED / PRE_CHECK)
               -------------------------------------------------------------- */}
@@ -400,6 +498,33 @@ export function AdminSubmissionInspectClient({
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="precheck-followup-pic" className="text-xs">
+                        PIC Tindak Lanjut (Jika Revisi)
+                      </Label>
+                      <Input
+                        id="precheck-followup-pic"
+                        disabled={submittingAction !== null}
+                        placeholder="Mitra / Vendor"
+                        value={followupPic}
+                        onChange={(e) => setFollowupPic(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="precheck-target-finish" className="text-xs">
+                        Target Selesai Tindak Lanjut
+                      </Label>
+                      <Input
+                        id="precheck-target-finish"
+                        type="date"
+                        disabled={submittingAction !== null}
+                        value={targetFinishDate}
+                        onChange={(e) => setTargetFinishDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <Button
                       type="button"
                       variant="default"
@@ -419,7 +544,9 @@ export function AdminSubmissionInspectClient({
                       type="button"
                       variant="destructive"
                       disabled={submittingAction !== null}
-                      onClick={() => executeTransition("precheck_revision")}
+                      onClick={() =>
+                        requestConfirmedTransition("precheck_revision")
+                      }
                       className="w-full gap-1.5"
                     >
                       {submittingAction === "precheck_revision" ? (
@@ -638,10 +765,10 @@ export function AdminSubmissionInspectClient({
                   </div>
 
                   {canRequestPhysicalRevision && (
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-3">
                       <div className="space-y-1.5">
                         <Label htmlFor="followup-select">
-                          Tindak Lanjut (followup_action)
+                          Tindak Lanjut
                         </Label>
                         <select
                           id="followup-select"
@@ -669,6 +796,18 @@ export function AdminSubmissionInspectClient({
                           onChange={(e) => setFollowupPic(e.target.value)}
                         />
                       </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="physical-target-finish">
+                          Target Selesai
+                        </Label>
+                        <Input
+                          id="physical-target-finish"
+                          type="date"
+                          disabled={submittingAction !== null}
+                          value={targetFinishDate}
+                          onChange={(e) => setTargetFinishDate(e.target.value)}
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -678,7 +817,9 @@ export function AdminSubmissionInspectClient({
                       disabled={
                         submittingAction !== null || !canForwardToPicUsaha
                       }
-                      onClick={() => executeTransition("physical_forward_pic")}
+                      onClick={() =>
+                        requestConfirmedTransition("physical_forward_pic")
+                      }
                       className="flex-1 gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
                     >
                       {submittingAction === "physical_forward_pic" ? (
@@ -697,7 +838,9 @@ export function AdminSubmissionInspectClient({
                       disabled={
                         submittingAction !== null || !canRequestPhysicalRevision
                       }
-                      onClick={() => executeTransition("physical_revision")}
+                      onClick={() =>
+                        requestConfirmedTransition("physical_revision")
+                      }
                       className="flex-1 gap-1.5"
                     >
                       {submittingAction === "physical_revision" ? (
@@ -747,6 +890,32 @@ export function AdminSubmissionInspectClient({
                       value={findingNotes}
                       onChange={(e) => setFindingNotes(e.target.value)}
                     />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="coord-followup-pic" className="text-xs">
+                        PIC Tindak Lanjut
+                      </Label>
+                      <Input
+                        id="coord-followup-pic"
+                        disabled={submittingAction !== null}
+                        value={followupPic}
+                        onChange={(e) => setFollowupPic(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="coord-target-finish" className="text-xs">
+                        Target Selesai
+                      </Label>
+                      <Input
+                        id="coord-target-finish"
+                        type="date"
+                        disabled={submittingAction !== null}
+                        value={targetFinishDate}
+                        onChange={(e) => setTargetFinishDate(e.target.value)}
+                      />
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-2.5 sm:flex-row">
@@ -915,6 +1084,22 @@ export function AdminSubmissionInspectClient({
                 </span>
                 <Badge variant="secondary">{submission.followup_action}</Badge>
               </div>
+              {submission.followup_pic && (
+                <div className="flex items-center justify-between border-b pb-2">
+                  <span className="text-muted-foreground">
+                    PIC Tindak Lanjut
+                  </span>
+                  <span className="font-medium">{submission.followup_pic}</span>
+                </div>
+              )}
+              {submission.target_finish_date && (
+                <div className="flex items-center justify-between border-b pb-2">
+                  <span className="text-muted-foreground">Target Selesai</span>
+                  <span className="font-medium">
+                    {formatDateWIB(submission.target_finish_date)}
+                  </span>
+                </div>
+              )}
 
               {submission.findings && (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-2.5">
@@ -1001,6 +1186,112 @@ export function AdminSubmissionInspectClient({
           </Card>
         </div>
       </div>
+
+      <AlertDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction === "physical_forward_pic"
+                ? "Teruskan Pengajuan ke PIC Usaha?"
+                : confirmAction === "precheck_revision"
+                ? "Kembalikan untuk Revisi Softcopy?"
+                : "Kembalikan untuk Revisi Hardcopy?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction === "physical_forward_pic"
+                ? `Berkas ${submission.agenda_no} telah dinyatakan lengkap secara fisik dan akan diteruskan ke antrean Approval PIC Usaha (Target SLA: 1 Hari Kerja).`
+                : `Pengajuan ${submission.agenda_no} akan dikembalikan kepada Mitra untuk perbaikan dokumen dan timer SLA akan otomatis di-PAUSE.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submittingAction !== null}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant={
+                confirmAction === "physical_forward_pic"
+                  ? "default"
+                  : "destructive"
+              }
+              disabled={submittingAction !== null}
+              onClick={() => {
+                if (!confirmAction) return;
+                const actionToRun = confirmAction;
+                setConfirmAction(null);
+                void executeTransition(actionToRun);
+              }}
+            >
+              {confirmAction === "physical_forward_pic"
+                ? "Ya, Teruskan ke PIC Usaha"
+                : "Ya, Kembalikan ke Mitra"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+      >
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Batalkan Pengajuan Tagihan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Pengajuan <strong>{submission.agenda_no}</strong> akan diubah
+              statusnya menjadi <strong>Dibatalkan</strong> secara permanen.
+              Nomor invoice <strong>{submission.invoice_no}</strong> akan
+              terbuka kembali apabila Mitra perlu mengajukan ulang.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="cancel-reason-input" className="text-xs">
+              Alasan Pembatalan <span className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id="cancel-reason-input"
+              rows={3}
+              disabled={submittingAction === "cancel_submission"}
+              placeholder="Contoh: Salah input nilai/nomor invoice, pengajuan ditarik atas permintaan Mitra..."
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+            />
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={submittingAction === "cancel_submission"}
+            >
+              Kembali
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={submittingAction === "cancel_submission"}
+              onClick={() => {
+                if (!cancelReason.trim()) {
+                  toast.error("Alasan pembatalan wajib diisi.");
+                  return;
+                }
+                setCancelDialogOpen(false);
+                void executeTransition("cancel_submission", {
+                  findings: cancelReason.trim(),
+                  finding_notes: cancelReason.trim(),
+                  notes: cancelReason.trim(),
+                });
+              }}
+            >
+              {submittingAction === "cancel_submission" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              Ya, Batalkan Pengajuan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

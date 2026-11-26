@@ -6,32 +6,23 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
-  ArrowRight,
+  ArrowLeft,
   CheckCircle2,
-  FileCheck2,
-  KeyRound,
+  Clock,
   Loader2,
   Lock,
-  Mail,
-  ShieldAlert,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { getHomeRouteForRole } from "@/lib/constants";
-import { Badge } from "@/components/ui/badge";
+import { BrandLogo } from "@/components/brand/brand-logo";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const ERROR_MESSAGES: Record<string, string> = {
   account_inactive:
@@ -42,13 +33,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   session_expired: "Sesi autentikasi telah berakhir. Silakan login kembali.",
 };
 
-function LoginFormContent() {
+function LoginForm04() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const errorParam = searchParams.get("error");
   const nextParam = searchParams.get("next");
 
-  const [activeTab, setActiveTab] = React.useState<"password" | "otp">(
+  const [authMode, setAuthMode] = React.useState<"password" | "otp">(
     "password"
   );
 
@@ -64,7 +55,7 @@ function LoginFormContent() {
   const [loadingOtp, setLoadingOtp] = React.useState(false);
 
   // State Reset Password Request
-  const [showForgotModal, setShowForgotModal] = React.useState(false);
+  const [showForgotBox, setShowForgotBox] = React.useState(false);
   const [forgotEmail, setForgotEmail] = React.useState("");
   const [loadingForgot, setLoadingForgot] = React.useState(false);
 
@@ -148,26 +139,43 @@ function LoginFormContent() {
 
     setLoadingOtp(true);
     try {
-      const supabase = createClient();
-      const redirectUrl = `${window.location.origin}/auth/callback${
-        nextParam ? `?next=${encodeURIComponent(nextParam)}` : ""
-      }`;
-
-      const { error } = await supabase.auth.signInWithOtp({
-        email: cleanEmail,
-        options: {
-          shouldCreateUser: false, // Skema Invite-Only: tolak pembuatan user baru otomatis
-          emailRedirectTo: redirectUrl,
-        },
+      const resp = await fetch("/api/auth/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: cleanEmail,
+          next: nextParam,
+        }),
       });
 
-      if (error) {
-        toast.error(
-          error.message.toLowerCase().includes("signups not allowed")
-            ? "Email ini belum terdaftar di sistem (Skema Invite-Only). Hubungi Admin Accelera."
-            : error.message
-        );
-        return;
+      const json = (await resp.json()) as {
+        ok: boolean;
+        error?: string;
+        fallbackToSupabase?: boolean;
+      };
+
+      if (!resp.ok || !json.ok) {
+        // Fallback ke Supabase bawaan jika Resend belum dikonfigurasi
+        if (json.fallbackToSupabase) {
+          const supabase = createClient();
+          const redirectUrl = `${window.location.origin}/auth/callback${
+            nextParam ? `?next=${encodeURIComponent(nextParam)}` : ""
+          }`;
+          const { error } = await supabase.auth.signInWithOtp({
+            email: cleanEmail,
+            options: {
+              shouldCreateUser: false,
+              emailRedirectTo: redirectUrl,
+            },
+          });
+          if (error) {
+            toast.error(error.message);
+            return;
+          }
+        } else {
+          toast.error(json.error ?? "Gagal mengirim kode OTP.");
+          return;
+        }
       }
 
       setOtpStep("verify");
@@ -242,7 +250,7 @@ function LoginFormContent() {
       toast.success(
         "Tautan atur ulang password telah dikirim ke email Anda."
       );
-      setShowForgotModal(false);
+      setShowForgotBox(false);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Gagal mengirim email pemulihan."
@@ -253,70 +261,39 @@ function LoginFormContent() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3.5 py-1.5 text-sm font-semibold text-primary transition hover:bg-primary/15"
-        >
-          <FileCheck2 className="size-4" />
-          Accelera HUB
-        </Link>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          Masuk ke Portal Penagihan
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Sistem Verifikasi, Validasi &amp; Monitoring SLA 6 Hari Kerja
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <Card className="overflow-hidden border-border/80 p-0 shadow-xl">
+        <CardContent className="grid p-0 md:min-h-[550px] md:grid-cols-2">
+          {/* KOLOM KIRI: FORM LOGIN (SHADCN LOGIN-04) */}
+          <div className="flex flex-col justify-center px-6 py-10 md:px-10 md:py-14">
+            <div className="flex flex-col gap-7">
+              {/* Mobile Logo (hanya tampil di layar kecil saat panel kanan tersembunyi) */}
+              <div className="flex justify-center md:hidden">
+                <BrandLogo variant="horizontal" size="md" />
+              </div>
 
-      {errorBannerMessage && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs text-destructive">
-          <AlertCircle className="mt-0.5 size-4 shrink-0" />
-          <div className="flex-1 leading-relaxed">{errorBannerMessage}</div>
-        </div>
-      )}
+              <div className="flex flex-col items-center text-center">
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                  Selamat Datang Kembali
+                </h1>
+                <p className="mt-1.5 text-sm text-balance text-muted-foreground">
+                  Masuk ke akun Accelera HUB Anda
+                </p>
+              </div>
 
-      <Card className="border-border/80 shadow-sm">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-base">Autentikasi Pengguna</CardTitle>
-            <Badge variant="outline" className="text-[11px]">
-              Invite-Only Access
-            </Badge>
-          </div>
-          <CardDescription>
-            Pilih metode masuk menggunakan Password atau Kode OTP / Magic Link
-            Email.
-          </CardDescription>
-        </CardHeader>
+              {errorBannerMessage && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-destructive/40 bg-destructive/10 p-3.5 text-xs text-destructive">
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                  <div className="flex-1 leading-relaxed">
+                    {errorBannerMessage}
+                  </div>
+                </div>
+              )}
 
-        <CardContent className="pt-2">
-          <Tabs
-            value={activeTab}
-            onValueChange={(val) => {
-              setActiveTab(val as "password" | "otp");
-            }}
-            className="w-full"
-          >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="password" className="gap-1.5 text-xs">
-                <Lock className="size-3.5" />
-                Email &amp; Password
-              </TabsTrigger>
-              <TabsTrigger value="otp" className="gap-1.5 text-xs">
-                <Sparkles className="size-3.5" />
-                OTP / Magic Link
-              </TabsTrigger>
-            </TabsList>
-
-            {/* METODE 1: EMAIL & PASSWORD */}
-            <TabsContent value="password" className="mt-4">
-              <form onSubmit={handlePasswordLogin} className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="login-email">Alamat Email</Label>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
+              {authMode === "password" ? (
+                <form onSubmit={handlePasswordLogin} className="grid gap-5">
+                  <div className="grid gap-2">
+                    <Label htmlFor="login-email">Email</Label>
                     <Input
                       id="login-email"
                       type="email"
@@ -325,72 +302,168 @@ function LoginFormContent() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="pl-9"
                     />
                   </div>
-                </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="login-password">Password</Label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setForgotEmail(email);
-                        setShowForgotModal((prev) => !prev);
-                      }}
-                      className="text-xs font-medium text-primary hover:underline"
-                    >
-                      Lupa password?
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <KeyRound className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
+                  <div className="grid gap-2">
+                    <div className="flex items-center">
+                      <Label htmlFor="login-password">Password</Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotEmail(email);
+                          setShowForgotBox((prev) => !prev);
+                        }}
+                        className="ml-auto cursor-pointer text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                      >
+                        Lupa password?
+                      </button>
+                    </div>
                     <Input
                       id="login-password"
                       type="password"
-                      placeholder="Masukkan password Anda"
+                      placeholder="••••••••"
                       autoComplete="current-password"
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pl-9"
                     />
                   </div>
-                </div>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  size="lg"
-                  disabled={loadingPassword}
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full"
+                    disabled={loadingPassword}
+                  >
+                    {loadingPassword ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Memverifikasi...
+                      </>
+                    ) : (
+                      "Login"
+                    )}
+                  </Button>
+                </form>
+              ) : otpStep === "request" ? (
+                <form
+                  onSubmit={handleSendOtpOrMagicLink}
+                  className="grid gap-5"
                 >
-                  {loadingPassword ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Memverifikasi...
-                    </>
-                  ) : (
-                    <>
-                      Masuk dengan Password
-                      <ArrowRight className="size-4" />
-                    </>
-                  )}
-                </Button>
-              </form>
+                  <div className="rounded-xl border border-border bg-surface-subtle/70 p-3 text-xs leading-relaxed text-muted-foreground">
+                    Masukkan email terdaftar Anda untuk menerima{" "}
+                    <strong className="text-foreground">Kode OTP 6 Digit</strong>{" "}
+                    sekaligus{" "}
+                    <strong className="text-foreground">Magic Link</strong>{" "}
+                    sekali klik.
+                  </div>
 
-              {showForgotModal && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="otp-email">Email Terdaftar</Label>
+                    <Input
+                      id="otp-email"
+                      type="email"
+                      placeholder="pic@mitra-vendor.co.id"
+                      required
+                      value={otpEmail}
+                      onChange={(e) => setOtpEmail(e.target.value)}
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full"
+                    disabled={loadingOtp}
+                  >
+                    {loadingOtp ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Mengirim Kode OTP...
+                      </>
+                    ) : (
+                      "Kirim Kode OTP & Magic Link"
+                    )}
+                  </Button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtpCode} className="grid gap-5">
+                  <div className="flex items-start gap-2.5 rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-3 text-xs leading-relaxed text-emerald-800 dark:text-emerald-200">
+                    <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+                    <div>
+                      Kode OTP 6 digit telah dikirim ke{" "}
+                      <strong>{otpEmail}</strong>.
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="otp-code">Kode OTP (6 Digit)</Label>
+                    <Input
+                      id="otp-code"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="123456"
+                      required
+                      value={otpCode}
+                      onChange={(e) =>
+                        setOtpCode(e.target.value.replace(/\D/g, ""))
+                      }
+                      className="h-11 text-center font-mono text-lg font-bold tracking-[0.45em]"
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full"
+                    disabled={loadingOtp || otpCode.length < 6}
+                  >
+                    {loadingOtp ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Memverifikasi OTP...
+                      </>
+                    ) : (
+                      "Verifikasi & Login"
+                    )}
+                  </Button>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOtpStep("request");
+                        setOtpCode("");
+                      }}
+                      className="cursor-pointer text-muted-foreground hover:text-foreground"
+                    >
+                      Ganti email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSendOtpOrMagicLink}
+                      disabled={loadingOtp}
+                      className="cursor-pointer font-semibold text-brand-teal hover:underline"
+                    >
+                      Kirim ulang kode
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {showForgotBox && authMode === "password" && (
                 <form
                   onSubmit={handleRequestResetPassword}
-                  className="mt-4 space-y-3 rounded-xl border bg-muted/40 p-3.5"
+                  className="space-y-3 rounded-xl border border-border bg-surface-subtle/80 p-3.5"
                 >
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold text-foreground">
                       Kirim Tautan Reset Password
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Kami akan mengirimkan tautan ke email Anda untuk menuju
-                      halaman <code>/reset-password</code>.
+                      Tautan pemulihan akan dikirim ke email terdaftar Anda.
                     </p>
                   </div>
                   <Input
@@ -404,12 +477,12 @@ function LoginFormContent() {
                     <Button
                       type="button"
                       variant="ghost"
-                      size="sm"
-                      onClick={() => setShowForgotModal(false)}
+                      size="xs"
+                      onClick={() => setShowForgotBox(false)}
                     >
                       Batal
                     </Button>
-                    <Button type="submit" size="sm" disabled={loadingForgot}>
+                    <Button type="submit" size="xs" disabled={loadingForgot}>
                       {loadingForgot ? (
                         <Loader2 className="size-3.5 animate-spin" />
                       ) : null}
@@ -418,157 +491,126 @@ function LoginFormContent() {
                   </div>
                 </form>
               )}
-            </TabsContent>
 
-            {/* METODE 2: PASSWORDLESS (MAGIC LINK / OTP 6 DIGIT) */}
-            <TabsContent value="otp" className="mt-4">
-              {otpStep === "request" ? (
-                <form
-                  onSubmit={handleSendOtpOrMagicLink}
-                  className="space-y-4"
+              {/* DIVIDER "Atau lanjutkan dengan" PERSIS SHADCN LOGIN-04 */}
+              <div className="relative text-center text-xs after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
+                <span className="relative z-10 bg-card px-2.5 text-muted-foreground">
+                  Atau lanjutkan dengan
+                </span>
+              </div>
+
+              {/* TOMBOL PILIHAN METODE LOGIN ALTERNATIF */}
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  type="button"
+                  variant={authMode === "password" ? "default" : "outline"}
+                  onClick={() => {
+                    setAuthMode("password");
+                  }}
+                  className="w-full gap-2 text-xs"
                 >
-                  <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-                    Solusi bebas lupa password bagi Mitra: masukkan email Anda
-                    untuk menerima <strong>Kode OTP 6 Digit</strong> sekaligus{" "}
-                    <strong>Magic Link</strong> sekali klik.
-                  </div>
+                  <Lock className="size-3.5" />
+                  <span>Password</span>
+                </Button>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="otp-email">Email Terdaftar</Label>
-                    <div className="relative">
-                      <Mail className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
-                      <Input
-                        id="otp-email"
-                        type="email"
-                        placeholder="pic@mitra-vendor.co.id"
-                        required
-                        value={otpEmail}
-                        onChange={(e) => setOtpEmail(e.target.value)}
-                        className="pl-9"
-                      />
-                    </div>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    size="lg"
-                    disabled={loadingOtp}
-                  >
-                    {loadingOtp ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        Mengirim Kode OTP...
-                      </>
-                    ) : (
-                      <>
-                        Kirim Kode OTP &amp; Magic Link
-                        <ArrowRight className="size-4" />
-                      </>
-                    )}
-                  </Button>
-                </form>
-              ) : (
-                <form onSubmit={handleVerifyOtpCode} className="space-y-4">
-                  <div className="flex items-start gap-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-300">
-                    <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-                    <div>
-                      Kode OTP 6 digit telah dikirim ke{" "}
-                      <strong>{otpEmail}</strong>. Anda juga dapat langsung
-                      mengeklik Magic Link di dalam email tersebut.
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="otp-code">Kode OTP (6 Digit)</Label>
-                    <Input
-                      id="otp-code"
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      placeholder="123456"
-                      required
-                      value={otpCode}
-                      onChange={(e) =>
-                        setOtpCode(e.target.value.replace(/\D/g, ""))
-                      }
-                      className="text-center font-mono text-lg tracking-[0.4em]"
-                    />
-                  </div>
-
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    size="lg"
-                    disabled={loadingOtp || otpCode.length < 6}
-                  >
-                    {loadingOtp ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        Memverifikasi OTP...
-                      </>
-                    ) : (
-                      <>
-                        Verifikasi &amp; Masuk
-                        <ArrowRight className="size-4" />
-                      </>
-                    )}
-                  </Button>
-
-                  <div className="flex items-center justify-between pt-1 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOtpStep("request");
-                        setOtpCode("");
-                      }}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      Ganti alamat email
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSendOtpOrMagicLink}
-                      disabled={loadingOtp}
-                      className="font-medium text-primary hover:underline"
-                    >
-                      Kirim ulang kode
-                    </button>
-                  </div>
-                </form>
-              )}
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-
-        <CardFooter className="flex-col items-start gap-2 border-t bg-muted/30 text-xs text-muted-foreground">
-          <div className="flex items-start gap-2">
-            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-            <p className="leading-relaxed">
-              <strong>Pendaftaran Publik Ditutup (Invite-Only):</strong> Akun
-              Mitra dan Internal hanya dapat didaftarkan oleh Admin Accelera
-              atau Super Admin.
-            </p>
+                <Button
+                  type="button"
+                  variant={authMode === "otp" ? "default" : "outline"}
+                  onClick={() => {
+                    if (email && !otpEmail) setOtpEmail(email);
+                    setAuthMode("otp");
+                  }}
+                  className="w-full gap-2 text-xs"
+                >
+                  <Sparkles className="size-3.5" />
+                  <span>OTP / Magic Link</span>
+                </Button>
+              </div>
+            </div>
           </div>
-        </CardFooter>
+
+          {/* KOLOM KANAN: PANEL VISUAL & LOGO (SHADCN LOGIN-04 IMAGE SIDE) */}
+          <div className="relative hidden flex-col items-center justify-center overflow-hidden border-l border-border/70 bg-surface-subtle p-10 md:flex dark:bg-[#0A1729]">
+            {/* Dekorasi Cahaya Halus */}
+            <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-brand-teal/15 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-24 -left-24 size-72 rounded-full bg-brand-navy/15 blur-3xl dark:bg-brand-teal/10" />
+
+            {/* Badge Sudut Atas */}
+            <div className="absolute inset-x-8 top-8 z-10 flex items-center justify-between text-xs font-medium text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-3 py-1 font-semibold text-foreground shadow-2xs">
+                <ShieldCheck className="size-3.5 text-brand-teal" />
+                Invite-Only Portal
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[11px]">
+                <Clock className="size-3 text-brand-teal" />
+                SLA 6 HK
+              </span>
+            </div>
+
+            {/* Logo Utama di Tengah Panel Visual */}
+            <div className="relative z-10 flex flex-col items-center text-center">
+              <div className="rounded-3xl border border-border/80 bg-card/95 p-8 shadow-md backdrop-blur-xs">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/logo-full-light.png"
+                  alt="Logo Accelera HUB"
+                  className="h-36 w-auto object-contain select-none dark:hidden"
+                />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/logo-full-dark.png"
+                  alt="Logo Accelera HUB"
+                  className="hidden h-36 w-auto object-contain select-none dark:block"
+                />
+              </div>
+              <p className="mt-6 max-w-[260px] text-xs leading-relaxed text-muted-foreground">
+                Sistem Verifikasi, Validasi &amp; Monitoring SLA 6 Hari Kerja
+                Dokumen Penagihan Mitra Terintegrasi.
+              </p>
+            </div>
+          </div>
+        </CardContent>
       </Card>
+
+      <div className="text-center text-xs text-balance text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-primary">
+        Akses khusus pengguna terdaftar (<em>Invite-Only</em>). Lupa akses akun?{" "}
+        <Link href="/reset-password">Atur ulang password</Link> atau hubungi
+        Admin Accelera.
+      </div>
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen flex-1 flex-col justify-center bg-muted/30 px-4 py-10">
-      <Suspense
-        fallback={
-          <div className="mx-auto flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Memuat portal autentikasi...
-          </div>
-        }
-      >
-        <LoginFormContent />
-      </Suspense>
-    </main>
+    <div className="flex min-h-svh flex-col bg-muted/60 dark:bg-background">
+      {/* Top Bar Ringkas */}
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 pt-5">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-3.5" />
+          Kembali ke Beranda
+        </Link>
+        <ThemeToggle showLabel />
+      </div>
+
+      {/* Center Container mengikuti struktur shadcn login-04 */}
+      <main className="flex flex-1 flex-col items-center justify-center p-6 md:p-10">
+        <div className="w-full max-w-sm md:max-w-3xl">
+          <Suspense
+            fallback={
+              <div className="mx-auto flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin text-brand-teal" />
+                Memuat halaman login...
+              </div>
+            }
+          >
+            <LoginForm04 />
+          </Suspense>
+        </div>
+      </main>
+    </div>
   );
 }

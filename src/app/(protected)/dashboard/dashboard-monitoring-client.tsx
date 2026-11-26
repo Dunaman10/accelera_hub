@@ -3,13 +3,23 @@
 import * as React from "react";
 import Link from "next/link";
 import {
+  Activity,
   AlertTriangle,
+  BarChart3,
+  BookOpen,
   Calendar,
   CheckCircle2,
+  ClipboardList,
+  Clock,
   ExternalLink,
+  FileCheck2,
   HardDrive,
   Info,
+  Layers,
+  PieChart as PieChartIcon,
   TableProperties,
+  TrendingUp,
+  Wallet,
 } from "lucide-react";
 import {
   Bar,
@@ -29,6 +39,7 @@ import {
 import type { BillingSubmission, UserRole } from "@/types";
 import type { DriveStorageQuota } from "@/lib/google-drive";
 import { formatBytes, formatRupiah } from "@/lib/constants";
+import { PageGuide } from "@/components/layout/page-guide";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -60,18 +71,70 @@ const MONTH_SHORT_LABELS = [
 ] as const;
 
 const SLA_CHART_COLORS: Record<string, string> = {
-  "Sesuai SLA": "#548235",
-  Terlambat: "#C00000",
-  "Perlu Perhatian": "#C55A11",
-  "Dalam Proses": "#1F6F78",
+  "Sesuai SLA": "#16a34a",
+  Terlambat: "#dc2626",
+  "Perlu Perhatian": "#d97706",
+  "Dalam Proses": "#059c95",
 };
 
 const FINAL_STATUS_BAR_COLORS: Record<string, string> = {
-  "Dalam Proses": "#1F6F78",
-  "Menunggu Mitra": "#C55A11",
-  Selesai: "#548235",
-  Dibatalkan: "#7F7F7F",
+  "Dalam Proses": "#059c95",
+  "Menunggu Mitra": "#d97706",
+  Selesai: "#16a34a",
+  Dibatalkan: "#64748b",
 };
+
+interface ChartTooltipPayloadItem {
+  name?: string;
+  value?: number | string;
+  color?: string;
+  payload?: {
+    color?: string;
+    fill?: string;
+    pctText?: string;
+  };
+}
+
+interface ShadcnChartTooltipProps {
+  active?: boolean;
+  payload?: ChartTooltipPayloadItem[];
+  label?: string | number;
+  unitLabel?: string;
+}
+
+function ShadcnChartTooltip({
+  active,
+  payload,
+  label,
+  unitLabel = "Tagihan",
+}: ShadcnChartTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null;
+  const first = payload[0];
+  const itemName = label ? String(label) : String(first?.name ?? "");
+  const dotColor =
+    first?.color ?? first?.payload?.fill ?? first?.payload?.color ?? "#059c95";
+
+  return (
+    <div className="rounded-xl border border-border bg-popover px-3.5 py-2.5 font-sans text-xs text-popover-foreground shadow-lg">
+      {itemName && (
+        <p className="mb-1 text-sm font-semibold text-foreground">{itemName}</p>
+      )}
+      <div className="flex items-center gap-2 text-muted-foreground tabular-nums">
+        <span
+          className="size-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: dotColor }}
+        />
+        <span>
+          <strong className="font-bold text-foreground">
+            {String(first?.value ?? 0)}
+          </strong>{" "}
+          {unitLabel}
+          {first?.payload?.pctText ? ` (${first.payload.pctText})` : ""}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function getWibYearAndMonth(isoStr: string): { year: number; monthIdx: number } {
   const d = new Date(isoStr);
@@ -135,10 +198,8 @@ export function DashboardMonitoringClient({
     (s) => s.final_status === "Dibatalkan"
   ).length;
 
-  // Kartu 3: DALAM PROSES (gabungan dalam_proses + menunggu_mitra)
   const combinedDalamProsesCount = dalamProsesOnlyCount + menungguMitraCount;
 
-  // Ringkasan Status SLA
   const sesuaiSlaCount = filteredSubmissions.filter(
     (s) => s.sla_status === "Sesuai SLA"
   ).length;
@@ -152,10 +213,8 @@ export function DashboardMonitoringClient({
     (s) => s.sla_status === "Dalam Proses"
   ).length;
 
-  // Kartu 4: TERLAMBAT / PERHATIAN (gabungan SLA Terlambat + Perlu Perhatian)
   const combinedTerlambatPerhatianCount = terlambatCount + perluPerhatianCount;
 
-  // Kartu 5: NILAI (SUM(billing_amount))
   const totalBillingAmount = filteredSubmissions.reduce(
     (acc, s) => acc + Number(s.amount ?? 0),
     0
@@ -167,7 +226,6 @@ export function DashboardMonitoringClient({
   const pct = (count: number) =>
     totalCount > 0 ? `${((count / totalCount) * 100).toFixed(1)}%` : "0.0%";
 
-  // 1. RINGKASAN STATUS AKHIR
   const summaryFinalStatusRows = [
     {
       label: "Dalam Proses",
@@ -191,7 +249,6 @@ export function DashboardMonitoringClient({
     },
   ];
 
-  // 2. RINGKASAN STATUS SLA
   const summarySlaStatusRows = [
     {
       label: "Sesuai SLA",
@@ -215,7 +272,6 @@ export function DashboardMonitoringClient({
     },
   ];
 
-  // 3. RINGKASAN TAHAP PEMERIKSAAN
   const softcopyPassCount = filteredSubmissions.filter(
     (s) => s.precheck_status === "Pass"
   ).length;
@@ -255,7 +311,6 @@ export function DashboardMonitoringClient({
   // ===========================================================================
   // BARIS 3 & 4 — DATA GRAFIK RECHARTS
   // ===========================================================================
-  // 1. Horizontal Bar Chart: Jumlah Invoice per Status Akhir
   const barChartData = [
     { status: "Dalam Proses", jumlah: dalamProsesOnlyCount },
     { status: "Menunggu Mitra", jumlah: menungguMitraCount },
@@ -263,7 +318,6 @@ export function DashboardMonitoringClient({
     { status: "Dibatalkan", jumlah: dibatalkanCount },
   ];
 
-  // 2. Pie/Donut Chart: Komposisi Status SLA
   const pieChartData = [
     {
       name: "Sesuai SLA",
@@ -289,7 +343,6 @@ export function DashboardMonitoringClient({
 
   const nonZeroPieData = pieChartData.filter((d) => d.value > 0);
 
-  // 3. Line Chart: Tren Tagihan Diterima per Bulan (Jan s.d. Des)
   const monthlyTrendData = React.useMemo(() => {
     const counts = new Array<number>(12).fill(0);
     const values = new Array<number>(12).fill(0);
@@ -311,33 +364,54 @@ export function DashboardMonitoringClient({
     userRole === "admin_accelera" || userRole === "super_admin";
 
   return (
-    <div className="space-y-5">
-      {/* =====================================================================
-          HEADER BANNER NAVY BLUE (#1F4E78)
-      ====================================================================== */}
-      <div className="rounded-xl bg-[#1F4E78] px-5 py-4 text-white shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-lg font-extrabold tracking-wide uppercase sm:text-xl">
-              DASHBOARD MONITORING PENAGIHAN
-            </h1>
-            <p className="mt-0.5 text-xs text-slate-200">
-              Ringkasan Real-Time Verifikasi, Validasi &amp; Kepatuhan SLA 6
-              Hari Kerja •{" "}
-              {selectedYear === "ALL"
-                ? `Seluruh Periode (${totalCount} Tagihan)`
-                : `Tahun ${selectedYear} (${totalCount} Tagihan)`}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-xs">
-              <Calendar className="size-3.5 text-sky-200" />
-              <span className="font-medium text-sky-100">Filter Tahun:</span>
+    <div className="space-y-6">
+      {/* PAGE GUIDE & HEADER BANNER */}
+      <PageGuide
+        variant="banner"
+        eyebrow="Dashboard Eksekutif"
+        title="Dashboard Monitoring Penagihan"
+        purpose={`Pusat pemantauan real-time kinerja verifikasi, validasi, nilai akumulasi tagihan, dan kepatuhan SLA 6 Hari Kerja. Menampilkan ${
+          selectedYear === "ALL"
+            ? `seluruh periode (${totalCount} tagihan)`
+            : `tahun ${selectedYear} (${totalCount} tagihan)`
+        }.`}
+        tip="Gunakan filter periode di kanan atas, lalu buka Tabel Monitoring untuk rincian 23 kolom & export Excel."
+        steps={[
+          {
+            title: "Pilih Periode Tahun",
+            description:
+              "Filter seluruh grafik & kartu KPI berdasarkan tahun penerimaan tagihan.",
+            badge: "Langkah 1",
+            status: "active",
+          },
+          {
+            title: "Pantau 5 KPI Utama",
+            description:
+              "Lihat total tagihan masuk, SPP terbit, antrean berjalan, dan total nilai Rupiah.",
+            badge: "Langkah 2",
+          },
+          {
+            title: "Cek Risiko SLA 6 HK",
+            description:
+              "Identifikasi tagihan berstatus Perlu Perhatian atau Terlambat dari tabel & grafik SLA.",
+            badge: "Langkah 3",
+          },
+          {
+            title: "Tindak Lanjut & Export",
+            description:
+              "Klik Tabel Monitoring untuk menelusuri No. Agenda spesifik atau mengunduh laporan Excel.",
+            badge: "Langkah 4",
+          },
+        ]}
+        actions={
+          <>
+            <div className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/12 px-3.5 py-2 text-xs">
+              <Calendar className="size-4 text-teal-200" />
+              <span className="font-semibold text-teal-100">Periode:</span>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
-                className="rounded bg-white px-2 py-0.5 text-xs font-bold text-[#1F4E78] outline-none"
+                className="rounded-md bg-white px-2.5 py-1 text-xs font-bold text-[#0B2E5C] outline-none"
                 aria-label="Filter Tahun"
               >
                 <option value="ALL">Semua Tahun</option>
@@ -351,133 +425,163 @@ export function DashboardMonitoringClient({
 
             <Link href="/monitoring">
               <Button
-                size="sm"
-                variant="secondary"
-                className="gap-1.5 bg-white text-xs font-bold text-[#1F4E78] hover:bg-slate-100"
+                size="default"
+                className="gap-2 bg-[#059C95] font-semibold text-white hover:bg-[#04857f]"
               >
-                <TableProperties className="size-3.5" />
-                Tabel 23 Kolom &amp; Export Excel
+                <TableProperties className="size-4" />
+                Tabel Monitoring &amp; Export
               </Button>
             </Link>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      {/* =====================================================================
-          BARIS 1 — 5 KARTU KPI UTAMA (GRID 5 KOLOM SESUAI WARNA EXCEL KLIEN)
-      ====================================================================== */}
-      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
-        {/* 1. TOTAL TAGIHAN (Header Navy #1F4E78) */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs">
-          <div className="bg-[#1F4E78] px-3.5 py-2 text-center text-xs font-bold tracking-wider text-white uppercase">
-            TOTAL TAGIHAN
+      {/* BARIS 1 — 5 KARTU KPI MODERN */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {/* 1. TOTAL TAGIHAN */}
+        <div className="rounded-2xl border border-border border-t-4 border-t-brand-navy bg-card p-5 shadow-xs transition-shadow hover:shadow-sm dark:border-t-sky-400">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+              Total Tagihan
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-xl bg-brand-navy/10 text-brand-navy dark:bg-sky-400/15 dark:text-sky-300">
+              <FileCheck2 className="size-4.5" />
+            </div>
           </div>
-          <div className="flex flex-col items-center justify-center px-3 py-4 text-center">
-            <span className="text-3xl font-extrabold text-[#1F4E78]">
+          <div className="mt-3">
+            <span className="text-3xl font-extrabold tracking-tight text-brand-navy tabular-nums dark:text-sky-300">
               {totalCount}
             </span>
-            <span className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               Total Invoice Masuk
-            </span>
+            </p>
           </div>
         </div>
 
-        {/* 2. SELESAI (Header Hijau #548235) */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs">
-          <div className="bg-[#548235] px-3.5 py-2 text-center text-xs font-bold tracking-wider text-white uppercase">
-            SELESAI
+        {/* 2. SELESAI */}
+        <div className="rounded-2xl border border-border border-t-4 border-t-emerald-600 bg-card p-5 shadow-xs transition-shadow hover:shadow-sm dark:border-t-emerald-400">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+              Selesai
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-600/12 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300">
+              <CheckCircle2 className="size-4.5" />
+            </div>
           </div>
-          <div className="flex flex-col items-center justify-center px-3 py-4 text-center">
-            <span className="text-3xl font-extrabold text-[#548235]">
+          <div className="mt-3">
+            <span className="text-3xl font-extrabold tracking-tight text-emerald-700 tabular-nums dark:text-emerald-400">
               {selesaiCount}
             </span>
-            <span className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground tabular-nums">
               SPP Terbit ({pct(selesaiCount)})
-            </span>
+            </p>
           </div>
         </div>
 
-        {/* 3. DALAM PROSES (Header Teal #1F6F78 — gabungan dalam_proses + menunggu_mitra) */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs">
-          <div className="bg-[#1F6F78] px-3.5 py-2 text-center text-xs font-bold tracking-wider text-white uppercase">
-            DALAM PROSES
+        {/* 3. DALAM PROSES */}
+        <div className="rounded-2xl border border-border border-t-4 border-t-brand-teal bg-card p-5 shadow-xs transition-shadow hover:shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+              Dalam Proses
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-xl bg-brand-teal/12 text-brand-teal">
+              <Clock className="size-4.5" />
+            </div>
           </div>
-          <div className="flex flex-col items-center justify-center px-3 py-4 text-center">
-            <span className="text-3xl font-extrabold text-[#1F6F78]">
+          <div className="mt-3">
+            <span className="text-3xl font-extrabold tracking-tight text-brand-teal tabular-nums">
               {combinedDalamProsesCount}
             </span>
-            <span className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground tabular-nums">
               {dalamProsesOnlyCount} Internal • {menungguMitraCount} Mitra
-            </span>
+            </p>
           </div>
         </div>
 
-        {/* 4. TERLAMBAT / PERHATIAN (Header Oranye #C55A11 — gabungan SLA Terlambat + Perlu Perhatian) */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs">
-          <div className="bg-[#C55A11] px-3.5 py-2 text-center text-xs font-bold tracking-wider text-white uppercase">
-            TERLAMBAT / PERHATIAN
+        {/* 4. TERLAMBAT / PERHATIAN */}
+        <div className="rounded-2xl border border-border border-t-4 border-t-amber-600 bg-card p-5 shadow-xs transition-shadow hover:shadow-sm dark:border-t-amber-400">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+              Terlambat / Perhatian
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-xl bg-amber-600/12 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300">
+              <AlertTriangle className="size-4.5" />
+            </div>
           </div>
-          <div className="flex flex-col items-center justify-center px-3 py-4 text-center">
-            <span className="text-3xl font-extrabold text-[#C55A11]">
+          <div className="mt-3">
+            <span className="text-3xl font-extrabold tracking-tight text-amber-700 tabular-nums dark:text-amber-400">
               {combinedTerlambatPerhatianCount}
             </span>
-            <span className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground tabular-nums">
               {terlambatCount} Terlambat • {perluPerhatianCount} Perhatian
-            </span>
+            </p>
           </div>
         </div>
 
-        {/* 5. NILAI (Header Ungu #7030A0 — SUM(billing_amount) format Rp xxx.xxx.xxx) */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs sm:col-span-2 lg:col-span-1">
-          <div className="bg-[#7030A0] px-3.5 py-2 text-center text-xs font-bold tracking-wider text-white uppercase">
-            NILAI
+        {/* 5. NILAI */}
+        <div className="rounded-2xl border border-border border-t-4 border-t-indigo-600 bg-card p-5 shadow-xs transition-shadow hover:shadow-sm sm:col-span-2 lg:col-span-1 dark:border-t-indigo-400">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+              Nilai Tagihan
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-xl bg-indigo-600/12 text-indigo-700 dark:bg-indigo-400/15 dark:text-indigo-300">
+              <Wallet className="size-4.5" />
+            </div>
           </div>
-          <div className="flex flex-col items-center justify-center px-3 py-4 text-center">
-            <span className="truncate font-mono text-base font-extrabold text-[#7030A0] sm:text-lg">
+          <div className="mt-3">
+            <span
+              className="block truncate text-lg font-extrabold tracking-tight text-indigo-700 tabular-nums sm:text-xl dark:text-indigo-300"
+              title={formatRupiah(totalBillingAmount)}
+            >
               {formatRupiah(totalBillingAmount)}
             </span>
-            <span className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               Akumulasi Nilai Tagihan
-            </span>
+            </p>
           </div>
         </div>
       </div>
 
-      {/* =====================================================================
-          BARIS 2 — 3 TABEL RINGKASAN SEJAJAR (HEADER NAVY #1F4E78)
-      ====================================================================== */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* BARIS 2 — 3 TABEL RINGKASAN SEJAJAR */}
+      <div className="grid gap-5 lg:grid-cols-3">
         {/* Tabel 1: RINGKASAN STATUS AKHIR */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs">
-          <div className="bg-[#1F4E78] px-4 py-2.5 text-xs font-bold tracking-wider text-white uppercase">
-            RINGKASAN STATUS AKHIR
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+          <div className="flex items-center gap-3 border-b border-border/80 px-5 py-4">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-brand-teal/12 text-brand-teal">
+              <Layers className="size-4" />
+            </div>
+            <h2 className="text-xs font-bold tracking-wide text-foreground uppercase">
+              Ringkasan Status Akhir
+            </h2>
           </div>
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-slate-100 text-left font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                <th className="px-3.5 py-2">Status Akhir</th>
-                <th className="px-3.5 py-2 text-right">Jumlah</th>
-                <th className="px-3.5 py-2 text-right">%</th>
+              <tr className="border-b border-border/80 bg-muted/50 text-left text-xs font-semibold text-muted-foreground">
+                <th className="px-5 py-2.5">Status Akhir</th>
+                <th className="px-5 py-2.5 text-right">Jumlah</th>
+                <th className="px-5 py-2.5 text-right">%</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-border/60">
               {summaryFinalStatusRows.map((row) => (
-                <tr key={row.label} className="hover:bg-muted/40">
-                  <td className="px-3.5 py-2 font-medium">{row.label}</td>
-                  <td className="px-3.5 py-2 text-right font-mono font-bold">
+                <tr key={row.label} className="hover:bg-accent/40">
+                  <td className="px-5 py-3 font-medium text-foreground">
+                    {row.label}
+                  </td>
+                  <td className="px-5 py-3 text-right font-semibold text-foreground tabular-nums">
                     {row.count}
                   </td>
-                  <td className="px-3.5 py-2 text-right font-mono text-muted-foreground">
+                  <td className="px-5 py-3 text-right text-muted-foreground tabular-nums">
                     {row.percentage}
                   </td>
                 </tr>
               ))}
-              <tr className="bg-slate-50 font-bold dark:bg-slate-900">
-                <td className="px-3.5 py-2">Total</td>
-                <td className="px-3.5 py-2 text-right font-mono">
+              <tr className="bg-muted/60 font-bold text-foreground">
+                <td className="px-5 py-3">Total</td>
+                <td className="px-5 py-3 text-right tabular-nums">
                   {totalCount}
                 </td>
-                <td className="px-3.5 py-2 text-right font-mono">
+                <td className="px-5 py-3 text-right tabular-nums">
                   {totalCount > 0 ? "100.0%" : "0.0%"}
                 </td>
               </tr>
@@ -486,36 +590,43 @@ export function DashboardMonitoringClient({
         </div>
 
         {/* Tabel 2: RINGKASAN STATUS SLA */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs">
-          <div className="bg-[#1F4E78] px-4 py-2.5 text-xs font-bold tracking-wider text-white uppercase">
-            RINGKASAN STATUS SLA
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+          <div className="flex items-center gap-3 border-b border-border/80 px-5 py-4">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-brand-teal/12 text-brand-teal">
+              <Activity className="size-4" />
+            </div>
+            <h2 className="text-xs font-bold tracking-wide text-foreground uppercase">
+              Ringkasan Status SLA
+            </h2>
           </div>
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-slate-100 text-left font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                <th className="px-3.5 py-2">Status SLA</th>
-                <th className="px-3.5 py-2 text-right">Jumlah</th>
-                <th className="px-3.5 py-2 text-right">%</th>
+              <tr className="border-b border-border/80 bg-muted/50 text-left text-xs font-semibold text-muted-foreground">
+                <th className="px-5 py-2.5">Status SLA</th>
+                <th className="px-5 py-2.5 text-right">Jumlah</th>
+                <th className="px-5 py-2.5 text-right">%</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-border/60">
               {summarySlaStatusRows.map((row) => (
-                <tr key={row.label} className="hover:bg-muted/40">
-                  <td className="px-3.5 py-2 font-medium">{row.label}</td>
-                  <td className="px-3.5 py-2 text-right font-mono font-bold">
+                <tr key={row.label} className="hover:bg-accent/40">
+                  <td className="px-5 py-3 font-medium text-foreground">
+                    {row.label}
+                  </td>
+                  <td className="px-5 py-3 text-right font-semibold text-foreground tabular-nums">
                     {row.count}
                   </td>
-                  <td className="px-3.5 py-2 text-right font-mono text-muted-foreground">
+                  <td className="px-5 py-3 text-right text-muted-foreground tabular-nums">
                     {row.percentage}
                   </td>
                 </tr>
               ))}
-              <tr className="bg-slate-50 font-bold dark:bg-slate-900">
-                <td className="px-3.5 py-2">Total</td>
-                <td className="px-3.5 py-2 text-right font-mono">
+              <tr className="bg-muted/60 font-bold text-foreground">
+                <td className="px-5 py-3">Total</td>
+                <td className="px-5 py-3 text-right tabular-nums">
                   {totalCount}
                 </td>
-                <td className="px-3.5 py-2 text-right font-mono">
+                <td className="px-5 py-3 text-right tabular-nums">
                   {totalCount > 0 ? "100.0%" : "0.0%"}
                 </td>
               </tr>
@@ -524,80 +635,111 @@ export function DashboardMonitoringClient({
         </div>
 
         {/* Tabel 3: RINGKASAN TAHAP PEMERIKSAAN */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs">
-          <div className="bg-[#1F4E78] px-4 py-2.5 text-xs font-bold tracking-wider text-white uppercase">
-            RINGKASAN TAHAP PEMERIKSAAN
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+          <div className="flex items-center gap-3 border-b border-border/80 px-5 py-4">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-brand-teal/12 text-brand-teal">
+              <ClipboardList className="size-4" />
+            </div>
+            <h2 className="text-xs font-bold tracking-wide text-foreground uppercase">
+              Ringkasan Tahap Pemeriksaan
+            </h2>
           </div>
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-slate-100 text-left font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                <th className="px-3.5 py-2">Tahap Pemeriksaan</th>
-                <th className="px-3.5 py-2 text-right">Lulus / Pass</th>
-                <th className="px-3.5 py-2 text-right">Rasio</th>
+              <tr className="border-b border-border/80 bg-muted/50 text-left text-xs font-semibold text-muted-foreground">
+                <th className="px-5 py-2.5">Tahap Pemeriksaan</th>
+                <th className="px-5 py-2.5 text-right">Lulus / Pass</th>
+                <th className="px-5 py-2.5 text-right">Rasio</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-border/60">
               {summaryStageCheckRows.map((row) => (
-                <tr key={row.label} className="hover:bg-muted/40">
-                  <td className="px-3.5 py-2 font-medium">{row.label}</td>
-                  <td className="px-3.5 py-2 text-right font-mono font-bold">
+                <tr key={row.label} className="hover:bg-accent/40">
+                  <td className="px-5 py-3 font-medium text-foreground">
+                    {row.label}
+                  </td>
+                  <td className="px-5 py-3 text-right font-semibold text-foreground tabular-nums">
                     {row.count}
                   </td>
-                  <td className="px-3.5 py-2 text-right font-mono text-muted-foreground">
+                  <td className="px-5 py-3 text-right text-muted-foreground tabular-nums">
                     {row.percentage}
                   </td>
                 </tr>
               ))}
-              <tr className="bg-slate-50 font-bold dark:bg-slate-900">
-                <td className="px-3.5 py-2">Basis Tagihan</td>
-                <td className="px-3.5 py-2 text-right font-mono">
+              <tr className="bg-muted/60 font-bold text-foreground">
+                <td className="px-5 py-3">Basis Tagihan</td>
+                <td className="px-5 py-3 text-right tabular-nums">
                   {totalCount}
                 </td>
-                <td className="px-3.5 py-2 text-right font-mono">Target 6 HK</td>
+                <td className="px-5 py-3 text-right tabular-nums">
+                  Target 6 HK
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* =====================================================================
-          BARIS 3 & 4 — 3 GRAFIK RECHARTS + PANEL PANDUAN (GRID 2 KOLOM)
-      ====================================================================== */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* KIRI ATAS: Horizontal Bar Chart (Jumlah Invoice per Status Akhir) */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs">
-          <div className="bg-[#1F4E78] px-4 py-2.5 text-xs font-bold tracking-wider text-white uppercase">
-            JUMLAH INVOICE PER STATUS AKHIR
+      {/* BARIS 3 & 4 — 3 GRAFIK RECHARTS + PANEL PANDUAN */}
+      <div className="grid gap-5 lg:grid-cols-2">
+        {/* KIRI ATAS: Horizontal Bar Chart */}
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+          <div className="flex items-center justify-between gap-2 border-b border-border/80 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-brand-teal/12 text-brand-teal">
+                <BarChart3 className="size-4" />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold tracking-wide text-foreground uppercase">
+                  Jumlah Invoice per Status Akhir
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Distribusi status penyelesaian dokumen tagihan
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="h-72 p-4">
+          <div className="h-76 p-5">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={barChartData}
                 layout="vertical"
                 margin={{ top: 8, right: 24, left: 16, bottom: 8 }}
               >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  horizontal={false}
+                  stroke="var(--border)"
+                />
                 <XAxis
                   type="number"
                   allowDecimals={false}
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+                  axisLine={{ stroke: "var(--border)" }}
+                  tickLine={false}
                 />
                 <YAxis
                   type="category"
                   dataKey="status"
-                  width={110}
-                  tick={{ fontSize: 11, fontWeight: 600 }}
+                  width={122}
+                  tick={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fill: "var(--foreground)",
+                  }}
+                  axisLine={false}
+                  tickLine={false}
                 />
                 <Tooltip
-                  formatter={(val) => [`${String(val)} Invoice`, "Jumlah"]}
-                  contentStyle={{ fontSize: "12px", borderRadius: "8px" }}
+                  cursor={{ fill: "var(--accent)", opacity: 0.45 }}
+                  content={<ShadcnChartTooltip unitLabel="Invoice" />}
                 />
-                <Bar dataKey="jumlah" radius={[0, 6, 6, 0]} barSize={28}>
+                <Bar dataKey="jumlah" radius={[0, 8, 8, 0]} barSize={28}>
                   {barChartData.map((entry) => (
                     <Cell
                       key={entry.status}
                       fill={
-                        FINAL_STATUS_BAR_COLORS[entry.status] ?? "#1F4E78"
+                        FINAL_STATUS_BAR_COLORS[entry.status] ?? "#059C95"
                       }
                     />
                   ))}
@@ -607,15 +749,27 @@ export function DashboardMonitoringClient({
           </div>
         </div>
 
-        {/* KANAN ATAS: Pie/Donut Chart (Komposisi Status SLA dengan legend & persentase rapi tanpa label bertumpuk) */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs">
-          <div className="bg-[#1F4E78] px-4 py-2.5 text-xs font-bold tracking-wider text-white uppercase">
-            KOMPOSISI STATUS SLA
+        {/* KANAN ATAS: Donut Chart Komposisi Status SLA */}
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+          <div className="flex items-center justify-between gap-2 border-b border-border/80 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-brand-teal/12 text-brand-teal">
+                <PieChartIcon className="size-4" />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold tracking-wide text-foreground uppercase">
+                  Komposisi Status SLA
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Proporsi kepatuhan terhadap target 6 Hari Kerja
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="flex h-72 flex-col items-center justify-between gap-4 p-4 sm:flex-row">
-            <div className="h-52 w-full sm:w-1/2">
+          <div className="flex min-h-76 flex-col items-center justify-between gap-4 p-5 sm:flex-row">
+            <div className="h-56 w-full sm:w-1/2">
               {nonZeroPieData.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                   Belum ada data tagihan
                 </div>
               ) : (
@@ -627,8 +781,8 @@ export function DashboardMonitoringClient({
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={45}
-                      outerRadius={76}
+                      innerRadius={48}
+                      outerRadius={82}
                       paddingAngle={2}
                       label={false}
                       labelLine={false}
@@ -636,42 +790,39 @@ export function DashboardMonitoringClient({
                       {nonZeroPieData.map((entry) => (
                         <Cell
                           key={entry.name}
-                          fill={SLA_CHART_COLORS[entry.name] ?? "#1F4E78"}
+                          fill={SLA_CHART_COLORS[entry.name] ?? "#059C95"}
                         />
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(val, name) => [
-                        `${String(val)} Tagihan`,
-                        String(name),
-                      ]}
-                      contentStyle={{ fontSize: "12px", borderRadius: "8px" }}
+                      content={<ShadcnChartTooltip unitLabel="Tagihan" />}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               )}
             </div>
 
-            {/* Custom Legend Rapi dengan Jumlah & Persentase */}
-            <div className="w-full space-y-2 sm:w-1/2">
+            <div className="w-full space-y-2.5 sm:w-1/2">
               {pieChartData.map((item) => (
                 <div
                   key={item.name}
-                  className="flex items-center justify-between rounded-lg border bg-muted/25 px-3 py-1.5 text-xs"
+                  className="flex items-center justify-between rounded-xl border border-border/80 bg-surface-subtle/70 px-3.5 py-2.5 text-sm"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <span
-                      className="size-3 shrink-0 rounded-xs"
+                      className="size-3 shrink-0 rounded-full"
                       style={{
                         backgroundColor:
-                          SLA_CHART_COLORS[item.name] ?? "#1F4E78",
+                          SLA_CHART_COLORS[item.name] ?? "#059C95",
                       }}
                     />
-                    <span className="font-medium">{item.name}</span>
+                    <span className="font-medium text-foreground">
+                      {item.name}
+                    </span>
                   </div>
-                  <div className="font-mono text-xs font-bold">
+                  <div className="text-sm font-bold text-foreground tabular-nums">
                     {item.value}{" "}
-                    <span className="font-normal text-muted-foreground">
+                    <span className="text-xs font-normal text-muted-foreground">
                       ({item.pctText})
                     </span>
                   </div>
@@ -681,32 +832,63 @@ export function DashboardMonitoringClient({
           </div>
         </div>
 
-        {/* KIRI BAWAH: Line Chart (Tren Tagihan Diterima per Bulan dari Jan s.d. Des) */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs">
-          <div className="bg-[#1F4E78] px-4 py-2.5 text-xs font-bold tracking-wider text-white uppercase">
-            TREN TAGIHAN DITERIMA PER BULAN (JAN S.D. DES)
+        {/* KIRI BAWAH: Line Chart Tren Tagihan Diterima per Bulan */}
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+          <div className="flex items-center justify-between gap-2 border-b border-border/80 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-brand-teal/12 text-brand-teal">
+                <TrendingUp className="size-4" />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold tracking-wide text-foreground uppercase">
+                  Tren Tagihan Diterima per Bulan (Jan–Des)
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Volume penerimaan dokumen penagihan bulanan
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="h-72 p-4">
+          <div className="h-76 p-5">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={monthlyTrendData}
                 margin={{ top: 10, right: 20, left: 0, bottom: 8 }}
               >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="bulan" tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                <Tooltip
-                  formatter={(val) => [`${String(val)} Tagihan`, "Tagihan Masuk"]}
-                  contentStyle={{ fontSize: "12px", borderRadius: "8px" }}
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis
+                  dataKey="bulan"
+                  tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+                  axisLine={{ stroke: "var(--border)" }}
+                  tickLine={false}
                 />
-                <Legend wrapperStyle={{ fontSize: "11px" }} />
+                <YAxis
+                  allowDecimals={false}
+                  tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  content={<ShadcnChartTooltip unitLabel="Tagihan Masuk" />}
+                />
+                <Legend
+                  wrapperStyle={{
+                    fontSize: "12px",
+                    color: "var(--muted-foreground)",
+                  }}
+                />
                 <Line
                   type="monotone"
                   dataKey="jumlah"
                   name="Jumlah Tagihan Diterima"
-                  stroke="#1F4E78"
-                  strokeWidth={2.5}
-                  dot={{ r: 4, fill: "#1F4E78" }}
+                  stroke="var(--brand-teal)"
+                  strokeWidth={3}
+                  dot={{
+                    r: 4,
+                    fill: "var(--brand-teal)",
+                    strokeWidth: 2,
+                    stroke: "var(--card)",
+                  }}
                   activeDot={{ r: 6 }}
                 />
               </LineChart>
@@ -714,107 +896,119 @@ export function DashboardMonitoringClient({
           </div>
         </div>
 
-        {/* KANAN BAWAH: Panel CARA MEMBACA DASHBOARD (header Navy #1F4E78, 5 poin ringkasan metrik) */}
-        <div className="overflow-hidden rounded-xl border bg-background shadow-2xs">
-          <div className="bg-[#1F4E78] px-4 py-2.5 text-xs font-bold tracking-wider text-white uppercase">
-            CARA MEMBACA DASHBOARD
+        {/* KANAN BAWAH: Panel CARA MEMBACA DASHBOARD */}
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+          <div className="flex items-center gap-3 border-b border-border/80 px-5 py-4">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-brand-teal/12 text-brand-teal">
+              <BookOpen className="size-4" />
+            </div>
+            <div>
+              <h2 className="text-xs font-bold tracking-wide text-foreground uppercase">
+                Cara Membaca Dashboard
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Panduan aturan SLA 6 Hari Kerja &amp; interpretasi metrik
+              </p>
+            </div>
           </div>
-          <div className="space-y-2.5 p-4 text-xs leading-relaxed">
-            <div className="flex items-start gap-2.5 rounded-lg border bg-muted/20 p-2.5">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#1F4E78] text-[11px] font-bold text-white">
+          <div className="space-y-3 p-5 text-sm leading-relaxed">
+            <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-surface-subtle/70 p-3.5">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-navy text-xs font-bold text-white tabular-nums dark:bg-sky-500">
                 1
               </span>
-              <p>
-                <strong>Target SLA Internal 6 Hari Kerja:</strong> Meliputi
-                Pre-Check Softcopy (1 HK), Cek Fisik Hardcopy (1 HK), Approval
-                PIC Usaha (1 HK), Validasi Akuntansi (2 HK), dan Penerbitan SPP
-                (1 HK), memotong Sabtu, Minggu, serta Hari Libur Nasional.
+              <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                <strong className="text-foreground">
+                  Target SLA Internal 6 Hari Kerja:
+                </strong>{" "}
+                Meliputi Pre-Check Softcopy (1 HK), Cek Fisik Hardcopy (1 HK),
+                Approval PIC Usaha (1 HK), Validasi Akuntansi (2 HK), dan
+                Penerbitan SPP (1 HK), memotong Sabtu, Minggu, serta Hari Libur
+                Nasional.
               </p>
             </div>
 
-            <div className="flex items-start gap-2.5 rounded-lg border bg-muted/20 p-2.5">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#1F6F78] text-[11px] font-bold text-white">
+            <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-surface-subtle/70 p-3.5">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-teal text-xs font-bold text-brand-teal-foreground tabular-nums">
                 2
               </span>
-              <p>
-                <strong>Mekanisme Auto-Pause SLA:</strong> Argo hari kerja
-                otomatis berhenti sementara (<em>PAUSE</em>) ketika status{" "}
-                <code>Menunggu Mitra</code> (menunggu pengiriman dokumen fisik
-                atau perbaikan revisi oleh vendor).
+              <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                <strong className="text-foreground">
+                  Mekanisme Auto-Pause SLA:
+                </strong>{" "}
+                Argo hari kerja otomatis berhenti sementara (<em>PAUSE</em>)
+                ketika status <code>Menunggu Mitra</code> (menunggu pengiriman
+                dokumen fisik atau perbaikan revisi oleh vendor).
               </p>
             </div>
 
-            <div className="flex items-start gap-2.5 rounded-lg border bg-muted/20 p-2.5">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#548235] text-[11px] font-bold text-white">
+            <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-surface-subtle/70 p-3.5">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white tabular-nums">
                 3
               </span>
-              <p>
-                <strong>Status Sesuai SLA vs Dalam Proses:</strong> Tagihan yang
-                telah terbit SPP dengan durasi &le; 6 HK diklasifikasikan{" "}
-                <strong>Sesuai SLA</strong>, sedangkan tagihan aktif &lt; 4.5 HK
-                berstatus <strong>Dalam Proses</strong>.
+              <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                <strong className="text-foreground">
+                  Status Sesuai SLA vs Dalam Proses:
+                </strong>{" "}
+                Tagihan yang telah terbit SPP dengan durasi &le; 6 HK
+                diklasifikasikan{" "}
+                <strong className="text-foreground">Sesuai SLA</strong>,
+                sedangkan tagihan aktif &lt; 4.5 HK berstatus{" "}
+                <strong className="text-foreground">Dalam Proses</strong>.
               </p>
             </div>
 
-            <div className="flex items-start gap-2.5 rounded-lg border bg-muted/20 p-2.5">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#C55A11] text-[11px] font-bold text-white">
+            <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-surface-subtle/70 p-3.5">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-600 text-xs font-bold text-white tabular-nums">
                 4
               </span>
-              <p>
-                <strong>Indikator Perlu Perhatian &amp; Terlambat:</strong>{" "}
+              <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                <strong className="text-foreground">
+                  Indikator Perlu Perhatian &amp; Terlambat:
+                </strong>{" "}
                 Tagihan aktif yang memasuki hari kerja ke-5 (&ge; 4.5 HK) atau
                 sisa kuota tahap aktif &le; 25% ditandai{" "}
-                <strong>Perlu Perhatian</strong>; jika melebihi 6 HK menjadi{" "}
-                <strong>Terlambat</strong>.
-              </p>
-            </div>
-
-            <div className="flex items-start gap-2.5 rounded-lg border bg-muted/20 p-2.5">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#7030A0] text-[11px] font-bold text-white">
-                5
-              </span>
-              <p>
-                <strong>Tahap Pemeriksaan &amp; Nilai Tagihan:</strong> Tabel
-                ringkasan menampilkan progres kelulusan tiap gerbang
-                verifikasi serta total akumulasi nilai Rupiah seluruh invoice
-                pada periode terpilih.
+                <strong className="text-foreground">Perlu Perhatian</strong>;
+                jika melebihi 6 HK menjadi{" "}
+                <strong className="text-foreground">Terlambat</strong>.
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* =====================================================================
-          WIDGET MONITOR KUOTA GOOGLE DRIVE (KHUSUS ADMIN ACCELERA & SUPER ADMIN)
-          Membaca batas kapasitas secara dinamis dari `storageQuota.limit`
-      ====================================================================== */}
+      {/* WIDGET MONITOR KUOTA GOOGLE DRIVE */}
       {showDriveWidget && (
         <div
           className={cn(
-            "overflow-hidden rounded-xl border bg-background shadow-2xs",
-            driveQuota?.isWarning
-              ? "border-amber-500/60"
-              : "border-border"
+            "overflow-hidden rounded-2xl border bg-card shadow-xs",
+            driveQuota?.isWarning ? "border-amber-500/60" : "border-border"
           )}
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-[#1F4E78] px-4 py-2.5 text-white">
-            <div className="flex items-center gap-2 text-xs font-bold tracking-wider uppercase">
-              <HardDrive className="size-4 text-sky-200" />
-              <span>
-                MONITORING KAPASITAS PENYIMPANAN GOOGLE DRIVE ARSIP DOKUMEN
-              </span>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-brand-teal/12 text-brand-teal">
+                <HardDrive className="size-4" />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold tracking-wide text-foreground uppercase">
+                  Monitoring Kapasitas Penyimpanan Google Drive
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Pemantauan ruang arsip dokumen softcopy &amp; PDF SPP
+                </p>
+              </div>
             </div>
             {driveQuota?.userEmail && (
-              <span className="rounded bg-white/15 px-2.5 py-0.5 font-mono text-[11px] text-sky-100">
+              <Badge variant="secondary" className="font-mono text-xs">
                 Akun Arsip: {driveQuota.userEmail}
-              </span>
+              </Badge>
             )}
           </div>
 
-          <div className="p-4">
+          <div className="p-5">
             {driveQuotaError ? (
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">
+                <div className="flex items-center gap-2.5">
                   <Info className="size-4 shrink-0" />
                   <span>
                     Status Kuota Google Drive belum dapat dimuat:{" "}
@@ -824,15 +1018,14 @@ export function DashboardMonitoringClient({
                 <Badge variant="outline">OAuth Drive</Badge>
               </div>
             ) : driveQuota ? (
-              <div className="space-y-3">
-                {/* Peringatan Visual Otomatis jika pemakaian >= 80% */}
+              <div className="space-y-4">
                 {driveQuota.isWarning && (
                   <div
                     className={cn(
-                      "flex items-start gap-2.5 rounded-lg border p-3 text-xs",
+                      "flex items-start gap-3 rounded-xl border p-4 text-sm",
                       driveQuota.isCritical
-                        ? "border-destructive/50 bg-destructive/10 text-destructive"
-                        : "border-amber-500/50 bg-amber-500/15 text-amber-900 dark:text-amber-200"
+                        ? "border-destructive/40 bg-destructive/10 text-destructive"
+                        : "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200"
                     )}
                   >
                     <AlertTriangle className="mt-0.5 size-4 shrink-0" />
@@ -842,7 +1035,7 @@ export function DashboardMonitoringClient({
                           ? "PERINGATAN KRITIS: Kapasitas Google Drive Hampir Penuh (>= 95%)!"
                           : "PERINGATAN KAPASITAS: Pemakaian Google Drive Telah Mencapai >= 80%!"}
                       </p>
-                      <p className="mt-0.5">
+                      <p className="mt-1 text-xs leading-relaxed tabular-nums">
                         Pemakaian saat ini adalah{" "}
                         <strong>{driveQuota.usagePercent}%</strong> (
                         {formatBytes(driveQuota.usageBytes)} dari{" "}
@@ -856,23 +1049,23 @@ export function DashboardMonitoringClient({
                   </div>
                 )}
 
-                <div className="grid gap-4 sm:grid-cols-4">
-                  <div className="rounded-lg border bg-muted/25 p-3">
-                    <p className="text-[11px] text-muted-foreground">
-                      Total Kapasitas Akun (Dinamis)
+                <div className="grid gap-3.5 sm:grid-cols-4">
+                  <div className="rounded-xl border border-border/80 bg-surface-subtle/70 p-4">
+                    <p className="text-xs text-muted-foreground">
+                      Total Kapasitas Akun
                     </p>
-                    <p className="mt-0.5 font-mono text-base font-extrabold text-[#1F4E78]">
+                    <p className="mt-1 text-lg font-extrabold text-primary tabular-nums">
                       {driveQuota.limitBytes !== null
                         ? formatBytes(driveQuota.limitBytes)
                         : "Tanpa Batas"}
                     </p>
                   </div>
 
-                  <div className="rounded-lg border bg-muted/25 p-3">
-                    <p className="text-[11px] text-muted-foreground">
+                  <div className="rounded-xl border border-border/80 bg-surface-subtle/70 p-4">
+                    <p className="text-xs text-muted-foreground">
                       Total Terpakai
                     </p>
-                    <p className="mt-0.5 font-mono text-base font-extrabold">
+                    <p className="mt-1 text-lg font-extrabold text-foreground tabular-nums">
                       {formatBytes(driveQuota.usageBytes)}{" "}
                       <span className="text-xs font-semibold text-muted-foreground">
                         ({driveQuota.usagePercent}%)
@@ -880,37 +1073,36 @@ export function DashboardMonitoringClient({
                     </p>
                   </div>
 
-                  <div className="rounded-lg border bg-muted/25 p-3">
-                    <p className="text-[11px] text-muted-foreground">
+                  <div className="rounded-xl border border-border/80 bg-surface-subtle/70 p-4">
+                    <p className="text-xs text-muted-foreground">
                       Sisa Kapasitas Tersedia
                     </p>
-                    <p className="mt-0.5 font-mono text-base font-extrabold text-[#548235]">
+                    <p className="mt-1 text-lg font-extrabold text-emerald-700 tabular-nums dark:text-emerald-400">
                       {driveQuota.remainingBytes !== null
                         ? formatBytes(driveQuota.remainingBytes)
                         : "Tersedia"}
                     </p>
                   </div>
 
-                  <div className="rounded-lg border bg-muted/25 p-3">
-                    <p className="text-[11px] text-muted-foreground">
+                  <div className="rounded-xl border border-border/80 bg-surface-subtle/70 p-4">
+                    <p className="text-xs text-muted-foreground">
                       File di Drive / Trash
                     </p>
-                    <p className="mt-0.5 font-mono text-xs font-bold">
+                    <p className="mt-1 text-sm font-bold text-foreground tabular-nums">
                       Drive: {formatBytes(driveQuota.usageInDriveBytes)} •
                       Trash: {formatBytes(driveQuota.usageInTrashBytes)}
                     </p>
                   </div>
                 </div>
 
-                {/* Progress Bar Visual */}
                 {driveQuota.hasLimit && (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1.5 font-medium">
+                      <span className="flex items-center gap-1.5 font-semibold text-foreground">
                         {driveQuota.isWarning ? (
-                          <AlertTriangle className="size-3.5 text-amber-600" />
+                          <AlertTriangle className="size-4 text-amber-500" />
                         ) : (
-                          <CheckCircle2 className="size-3.5 text-[#548235]" />
+                          <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
                         )}
                         Status Kapasitas:{" "}
                         {driveQuota.isCritical
@@ -919,22 +1111,22 @@ export function DashboardMonitoringClient({
                           ? "Perlu Perhatian (>= 80%)"
                           : "Aman (< 80%)"}
                       </span>
-                      <span className="font-mono font-bold">
+                      <span className="font-bold text-foreground tabular-nums">
                         {formatBytes(driveQuota.usageBytes)} /{" "}
                         {driveQuota.limitBytes !== null
                           ? formatBytes(driveQuota.limitBytes)
                           : "-"}
                       </span>
                     </div>
-                    <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                    <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
                       <div
                         className={cn(
                           "h-full rounded-full transition-all",
                           driveQuota.isCritical
                             ? "bg-destructive"
                             : driveQuota.isWarning
-                            ? "bg-[#C55A11]"
-                            : "bg-[#548235]"
+                            ? "bg-amber-500"
+                            : "bg-brand-teal"
                         )}
                         style={{
                           width: `${Math.min(100, Math.max(1, driveQuota.usagePercent))}%`,
@@ -949,22 +1141,22 @@ export function DashboardMonitoringClient({
         </div>
       )}
 
-      {/* TAUTAN CEPAT KE TABEL MONITORING 23 KOLOM */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background p-4 shadow-2xs">
-        <div className="text-xs">
-          <p className="font-bold text-foreground">
-            Ingin memeriksa rincian 23 kolom lengkap atau mengunduh laporan
-            Excel (.xlsx)?
+      {/* TAUTAN CEPAT KE TABEL MONITORING */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs">
+        <div className="space-y-1">
+          <p className="text-sm font-bold text-foreground">
+            Ingin memeriksa rincian lengkap atau mengunduh laporan Excel
+            (.xlsx)?
           </p>
-          <p className="text-muted-foreground">
-            Buka Tabel Monitoring 23 Kolom untuk filter rentang tanggal, vendor,
-            status akhir, status SLA, dan export Excel berformat klien.
+          <p className="text-sm text-muted-foreground">
+            Buka Tabel Monitoring untuk filter rentang tanggal, vendor, status
+            akhir, status SLA, dan export Excel 23 kolom.
           </p>
         </div>
         <Link href="/monitoring">
-          <Button className="gap-1.5 bg-[#1F4E78] text-white hover:bg-[#163a5a]">
-            Buka Tabel Monitoring 23 Kolom
-            <ExternalLink className="size-3.5" />
+          <Button size="lg" className="gap-2">
+            Buka Tabel Monitoring
+            <ExternalLink className="size-4" />
           </Button>
         </Link>
       </div>

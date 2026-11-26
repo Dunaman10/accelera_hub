@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { computeStageSlaIndicator } from "@/lib/sla";
+import { DetailPageSkeleton } from "@/components/ui/page-skeletons";
 import { SppSubmissionInspectClient } from "./spp-submission-inspect-client";
 
 async function SppSubmissionDetailContent({
@@ -84,14 +84,7 @@ export default function SppSubmissionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Halaman Penyusunan &amp; Penerbitan SPP...
-        </div>
-      }
-    >
+    <Suspense fallback={<DetailPageSkeleton />}>
       <SppSubmissionDetailContent params={params} />
     </Suspense>
   );

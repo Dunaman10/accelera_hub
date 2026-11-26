@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import { Loader2 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import {
@@ -9,6 +8,7 @@ import {
 import { computeSubmissionSlaFromLogs } from "@/lib/sla";
 import { fetchHolidayDateStrings } from "@/lib/sla/server";
 import type { BillingSubmission, StageLog } from "@/types";
+import { DashboardSkeleton } from "@/components/ui/page-skeletons";
 import {
   DashboardMonitoringClient,
   type DashboardSubmissionItem,
@@ -135,14 +135,7 @@ async function DashboardMonitoringContent() {
 
 export default function DashboardMonitoringPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Dashboard Monitoring Penagihan...
-        </div>
-      }
-    >
+    <Suspense fallback={<DashboardSkeleton />}>
       <DashboardMonitoringContent />
     </Suspense>
   );

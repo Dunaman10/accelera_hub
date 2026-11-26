@@ -1,7 +1,7 @@
 import { Suspense } from "react";
-import { Loader2 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { QueuePageSkeleton } from "@/components/ui/page-skeletons";
 import { MitraDashboardClient } from "./mitra-dashboard-client";
 
 async function MitraHomeContent() {
@@ -30,14 +30,7 @@ async function MitraHomeContent() {
 
 export default function MitraHomePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Riwayat &amp; Tracking Tagihan...
-        </div>
-      }
-    >
+    <Suspense fallback={<QueuePageSkeleton />}>
       <MitraHomeContent />
     </Suspense>
   );

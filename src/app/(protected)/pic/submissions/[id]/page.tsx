@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { computeStageSlaIndicator } from "@/lib/sla";
+import { DetailPageSkeleton } from "@/components/ui/page-skeletons";
 import { PicSubmissionInspectClient } from "./pic-submission-inspect-client";
 
 async function PicSubmissionDetailContent({
@@ -77,14 +77,7 @@ export default function PicSubmissionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Detail Pemeriksaan PIC Usaha...
-        </div>
-      }
-    >
+    <Suspense fallback={<DetailPageSkeleton />}>
       <PicSubmissionDetailContent params={params} />
     </Suspense>
   );

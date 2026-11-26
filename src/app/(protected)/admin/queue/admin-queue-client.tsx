@@ -37,6 +37,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -45,6 +46,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageGuide } from "@/components/layout/page-guide";
 import { cn } from "@/lib/utils";
 
 export type AdminQueueTabKey =
@@ -64,6 +66,7 @@ export interface SubmissionWithVendor extends BillingSubmission {
 interface QueueTabDefinition {
   key: AdminQueueTabKey;
   label: string;
+  compactLabel: string;
   shortDesc: string;
   stages: SubmissionStage[];
   slaNote: string;
@@ -74,6 +77,7 @@ export const ADMIN_QUEUE_TABS: QueueTabDefinition[] = [
   {
     key: "precheck_softcopy",
     label: "Perlu Pre-Check",
+    compactLabel: "Pre-Check",
     shortDesc:
       "Pemeriksaan awal kelengkapan berkas softcopy yang baru diajukan Mitra",
     stages: ["SUBMITTED", "PRE_CHECK"],
@@ -83,6 +87,7 @@ export const ADMIN_QUEUE_TABS: QueueTabDefinition[] = [
   {
     key: "menunggu_hardcopy",
     label: "Menunggu Hardcopy",
+    compactLabel: "Tunggu Fisik",
     shortDesc:
       "Softcopy telah Pass; menunggu dokumen fisik asli tiba di loket Accelera",
     stages: ["WAITING_HARDCOPY"],
@@ -92,6 +97,7 @@ export const ADMIN_QUEUE_TABS: QueueTabDefinition[] = [
   {
     key: "cek_fisik_hardcopy",
     label: "Perlu Cek Fisik & Verifikasi",
+    compactLabel: "Cek Fisik",
     shortDesc:
       "Berkas fisik sudah diterima; perlu cek fisik & verifikasi sebelum ke PIC Usaha",
     stages: ["PHYSICAL_CHECK"],
@@ -101,6 +107,7 @@ export const ADMIN_QUEUE_TABS: QueueTabDefinition[] = [
   {
     key: "koordinasi_temuan",
     label: "Koordinasi Temuan Internal",
+    compactLabel: "Koordinasi",
     shortDesc:
       "Temuan dari PIC Usaha atau Akuntansi yang perlu diteruskan ke Mitra atau dikembalikan",
     stages: ["REVISION_PIC", "REVISION_ACCOUNTING"],
@@ -110,6 +117,7 @@ export const ADMIN_QUEUE_TABS: QueueTabDefinition[] = [
   {
     key: "menunggu_revisi_mitra",
     label: "Menunggu Revisi Mitra",
+    compactLabel: "Revisi Mitra",
     shortDesc:
       "Tagihan yang dikembalikan ke Mitra untuk perbaikan softcopy atau berkas fisik",
     stages: ["REVISION_SOFTCOPY", "REVISION_HARDCOPY"],
@@ -190,141 +198,171 @@ export function AdminQueueClient({
 
   return (
     <div className="space-y-6">
-      {/* HEADER */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Antrean Kerja Admin Accelera (Verifikator)
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Meja Pemeriksaan Pre-Check Softcopy, Penerimaan Hardcopy, Cek Fisik
-            &amp; Verifikasi, serta Koordinasi Siklus Revisi Mitra.
-          </p>
-        </div>
-
-        {showMasterLinks && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/admin/vendors">
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Building2 className="size-4" />
-                Master Vendor
-                {typeof activeVendorsCount === "number" && (
-                  <Badge variant="secondary" className="ml-1 text-[10px]">
-                    {activeVendorsCount}
-                  </Badge>
-                )}
-              </Button>
-            </Link>
-            <Link href="/admin/users">
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Users className="size-4" />
-                Manajemen User
-                {typeof userCount === "number" && (
-                  <Badge variant="secondary" className="ml-1 text-[10px]">
-                    {userCount}
-                  </Badge>
-                )}
-              </Button>
-            </Link>
-          </div>
-        )}
-      </div>
-
-      {/* 5 TAB ANTREAN DENGAN BADGE JUMLAH ITEM */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {ADMIN_QUEUE_TABS.map((tab) => {
-          const Icon = tab.icon;
-          const isSelected = activeTab === tab.key;
-          const count = tabCounts[tab.key];
-
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                "flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all",
-                isSelected
-                  ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-xs"
-                  : "border-border bg-background hover:border-primary/40 hover:bg-muted/40"
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div
-                  className={cn(
-                    "flex size-8 items-center justify-center rounded-lg",
-                    isSelected
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
+      {/* PAGE GUIDE & HEADER */}
+      <PageGuide
+        eyebrow="Meja Kerja Admin Accelera (Verifikator)"
+        title="Antrean Pemeriksaan Tagihan"
+        purpose="Halaman kerja utama Admin Accelera untuk memeriksa kelengkapan softcopy, mencatat kedatangan berkas fisik (hardcopy), melakukan cek fisik & verifikasi administrasi, serta mengoordinasikan revisi dengan Mitra."
+        tip="Pilih salah satu dari 5 tab antrean di bawah lalu klik Periksa pada baris pengajuan untuk membuka layar split-screen."
+        steps={[
+          {
+            title: "Pre-Check Softcopy",
+            description:
+              "Periksa dokumen digital baru. Bila lengkap klik Pass agar Mitra mengirim berkas fisik.",
+            badge: "SLA 1 HK",
+            status: activeTab === "precheck_softcopy" ? "active" : undefined,
+          },
+          {
+            title: "Terima Hardcopy",
+            description:
+              "Timer SLA di-Pause saat menunggu kiriman fisik. Catat waktu terima saat berkas tiba di loket.",
+            badge: "Auto-Pause",
+            status: activeTab === "menunggu_hardcopy" ? "active" : undefined,
+          },
+          {
+            title: "Cek Fisik & Verifikasi",
+            description:
+              "Cocokkan berkas fisik asli dengan softcopy, lalu teruskan ke PIC Usaha bila Lengkap & Lulus.",
+            badge: "SLA 1 HK",
+            status: activeTab === "cek_fisik_hardcopy" ? "active" : undefined,
+          },
+          {
+            title: "Koordinasi Temuan",
+            description:
+              "Tindak lanjuti catatan revisi dari PIC Usaha / Akuntansi — teruskan ke Mitra atau kembalikan ke tim internal.",
+            badge: "Koordinasi",
+            status: activeTab === "koordinasi_temuan" ? "active" : undefined,
+          },
+          {
+            title: "Pantau Revisi Mitra",
+            description:
+              "Daftar berkas yang sedang diperbaiki Mitra (SLA di-Pause) sebelum kembali ke antrean.",
+            badge: "Auto-Pause",
+            status:
+              activeTab === "menunggu_revisi_mitra" ? "active" : undefined,
+          },
+        ]}
+        actions={
+          showMasterLinks ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/admin/vendors">
+                <Button variant="outline" size="default" className="gap-2">
+                  <Building2 className="size-4 text-brand-teal" />
+                  Master Vendor
+                  {typeof activeVendorsCount === "number" && (
+                    <Badge variant="secondary" className="ml-0.5 text-xs">
+                      {activeVendorsCount}
+                    </Badge>
                   )}
-                >
-                  <Icon className="size-4" />
-                </div>
-                <Badge
-                  variant={isSelected ? "default" : "secondary"}
-                  className="font-mono text-xs font-bold"
-                >
-                  {count}
-                </Badge>
-              </div>
+                </Button>
+              </Link>
+              <Link href="/admin/users">
+                <Button variant="outline" size="default" className="gap-2">
+                  <Users className="size-4 text-brand-teal" />
+                  Manajemen User
+                  {typeof userCount === "number" && (
+                    <Badge variant="secondary" className="ml-0.5 text-xs">
+                      {userCount}
+                    </Badge>
+                  )}
+                </Button>
+              </Link>
+            </div>
+          ) : undefined
+        }
+      />
 
-              <div className="mt-3 space-y-1">
-                <p className="text-xs font-bold leading-snug">{tab.label}</p>
-                <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
-                  {tab.shortDesc}
-                </p>
-              </div>
-
-              <div className="mt-2.5 border-t pt-2 text-[10px] font-medium text-muted-foreground">
-                {tab.slaNote}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* TABEL ANTREAN AKTIF */}
+      {/* TABEL ANTREAN AKTIF DENGAN FILTER TAHAP & SEARCH BAR DI BAGIAN ATAS */}
       <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
-                <FileSearch className="size-4 text-primary" />
+                <FileSearch className="size-4 text-brand-teal" />
                 <span>{activeTabMeta.label}</span>
                 <Badge variant="secondary" className="font-mono">
                   {filteredRows.length} item
                 </Badge>
+                <Badge variant="outline" className="text-xs font-normal">
+                  {activeTabMeta.slaNote}
+                </Badge>
               </CardTitle>
-              <CardDescription className="mt-0.5">
+              <CardDescription className="mt-1">
                 {activeTabMeta.shortDesc}
               </CardDescription>
             </div>
+          </div>
 
-            <div className="relative w-full sm:w-72">
-              <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted-foreground" />
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="relative w-full xl:w-68">
+              <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
                 placeholder="Cari No. Agenda, Mitra, Invoice..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 text-xs"
+                className="pl-10"
               />
+            </div>
+
+            {/* Segmented Control Bar 1 Baris Rapi */}
+            <div className="flex w-full items-center gap-1 overflow-x-auto rounded-xl border border-border/80 bg-surface-subtle/80 p-1 xl:w-auto">
+              {ADMIN_QUEUE_TABS.map((tab) => {
+                const isSelected = activeTab === tab.key;
+                const count = tabCounts[tab.key];
+
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveTab(tab.key)}
+                    title={tab.label}
+                    className={cn(
+                      "inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all xl:flex-initial",
+                      isSelected
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:bg-card/70 hover:text-foreground"
+                    )}
+                  >
+                    <span>{tab.compactLabel}</span>
+                    <span
+                      className={cn(
+                        "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.2 font-mono text-[11px] font-bold tabular-nums",
+                        isSelected
+                          ? "bg-white/20 text-primary-foreground dark:bg-black/20"
+                          : count > 0
+                          ? "bg-brand-teal/15 text-brand-teal"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </CardHeader>
 
         <CardContent>
           {filteredRows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-              <FileText className="size-9 stroke-1 opacity-60" />
-              <p className="font-medium">
-                Tidak ada dokumen pada antrean &ldquo;{activeTabMeta.label}
-                &rdquo;.
-              </p>
-              <p className="text-xs">
-                Pilih tab antrean lain di atas atau ubah kata kunci pencarian.
-              </p>
-            </div>
+            <EmptyState
+              icon={FileText}
+              title={`Antrean "${activeTabMeta.label}" Kosong`}
+              description="Pilih tab antrean lain di atas atau ubah kata kunci pencarian Anda."
+              action={
+                searchQuery.trim() ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    Bersihkan Pencarian
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -350,7 +388,7 @@ export function AdminQueueClient({
 
                     return (
                       <TableRow key={row.id}>
-                        <TableCell className="font-mono text-xs font-semibold">
+                        <TableCell className="font-mono text-xs font-semibold tabular-nums">
                           <Link
                             href={`/admin/submissions/${row.id}`}
                             className="text-primary hover:underline"
@@ -374,7 +412,7 @@ export function AdminQueueClient({
                           </div>
                         </TableCell>
 
-                        <TableCell className="font-mono text-xs font-semibold">
+                        <TableCell className="text-xs font-semibold whitespace-nowrap tabular-nums">
                           {formatRupiah(Number(row.amount))}
                         </TableCell>
 

@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { DetailPageSkeleton } from "@/components/ui/page-skeletons";
 import { AdminSubmissionInspectClient } from "./admin-submission-inspect-client";
 
 async function AdminSubmissionDetailContent({
@@ -61,14 +61,7 @@ export default function AdminSubmissionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Meja Pemeriksaan Split-Screen...
-        </div>
-      }
-    >
+    <Suspense fallback={<DetailPageSkeleton />}>
       <AdminSubmissionDetailContent params={params} />
     </Suspense>
   );

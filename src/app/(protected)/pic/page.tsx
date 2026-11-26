@@ -5,8 +5,6 @@ import {
   CheckCircle2,
   Clock,
   Eye,
-  FileText,
-  Loader2,
   ShieldCheck,
 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
@@ -29,6 +27,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageGuide } from "@/components/layout/page-guide";
+import { QueuePageSkeleton } from "@/components/ui/page-skeletons";
 import {
   Table,
   TableBody,
@@ -92,62 +93,83 @@ async function PicUsahaContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Meja Approval PIC Usaha
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Verifikasi substansi pekerjaan, kesesuaian BAST, dan nilai tagihan
-            berdasarkan Lembar Hasil Cek Digital Admin Accelera (Batas SLA Tahap
-            PIC: Maks. 1 Hari Kerja).
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Badge variant="default" className="gap-1.5 px-3 py-1 text-xs">
+      <PageGuide
+        eyebrow="Tahap 4 dari 6 • Verifikasi Substansi"
+        title="Meja Approval PIC Usaha"
+        purpose="Halaman kerja PIC Usaha untuk memeriksa substansi pekerjaan, kesesuaian Berita Acara Serah Terima (BAST), dan nilai tagihan atas berkas yang telah lulus Pre-Check & Cek Fisik oleh Admin Accelera."
+        tip="Klik tombol Periksa & Putuskan pada baris antrean aktif untuk membuka layar pemeriksaan dokumen split-screen."
+        steps={[
+          {
+            title: "Lulus Cek Admin",
+            description:
+              "Berkas sudah dinyatakan Softcopy Pass & Hardcopy Lengkap oleh Admin Accelera.",
+            badge: "Selesai",
+            status: "completed",
+          },
+          {
+            title: "Approval PIC Usaha",
+            description:
+              "Periksa substansi pekerjaan, BAST, dan nilai kontrak lalu putuskan Setujui atau Kembalikan Revisi.",
+            badge: "Anda di sini • 1 HK",
+            status: "active",
+          },
+          {
+            title: "Validasi Akuntansi",
+            description:
+              "Setelah disetujui, pengajuan otomatis masuk ke antrean Tim Akuntansi & Pajak.",
+            badge: "Tahap Berikut • 2 HK",
+          },
+          {
+            title: "Penerbitan SPP",
+            description:
+              "Divisi Usaha menerbitkan PDF SPP resmi ber-QR Code dan mengirimnya ke Keuangan.",
+            badge: "Final • 1 HK",
+          },
+        ]}
+        actions={
+          <Badge variant="default" className="gap-1.5 px-3 py-1.5 text-xs">
             <Clock className="size-3.5" />
             Target SLA Tahap PIC: 1 Hari Kerja
           </Badge>
-        </div>
-      </div>
+        }
+      />
 
       {/* RINGKASAN METRIK ANTREAN PIC USAHA */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-medium">
+        <Card className="border-t-4 border-t-brand-teal bg-brand-teal/5">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
               Antrean Menunggu Approval PIC Usaha
             </CardDescription>
-            <CardTitle className="font-mono text-2xl font-bold text-primary">
+            <CardTitle className="font-mono text-3xl font-extrabold text-brand-teal">
               {activeQueue.length}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-[11px] text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground">
             Tahap <code>PIC_APPROVAL</code> (SLA Aktif: Maks. 1 HK)
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-medium">
+        <Card className="border-t-4 border-t-amber-500">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
               Dikembalikan untuk Revisi Substansi PIC
             </CardDescription>
-            <CardTitle className="font-mono text-2xl font-bold text-amber-600 dark:text-amber-400">
+            <CardTitle className="font-mono text-3xl font-extrabold text-amber-600 dark:text-amber-400">
               {allRows.filter((r) => r.current_stage === "REVISION_PIC").length}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-[11px] text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground">
             Tahap <code>REVISION_PIC</code> (Timer SLA Di-PAUSE)
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-medium">
+        <Card className="border-t-4 border-t-emerald-600 dark:border-t-emerald-400">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
               Telah Disetujui &amp; Lanjut ke Akuntansi / SPP
             </CardDescription>
-            <CardTitle className="font-mono text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+            <CardTitle className="font-mono text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
               {
                 allRows.filter(
                   (r) =>
@@ -158,7 +180,7 @@ async function PicUsahaContent() {
               }
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-[11px] text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground">
             Telah melewati gerbang Approval PIC Usaha
           </CardContent>
         </Card>
@@ -181,16 +203,11 @@ async function PicUsahaContent() {
         </CardHeader>
         <CardContent>
           {activeQueue.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-              <FileText className="size-9 stroke-1 opacity-60" />
-              <p className="font-medium">
-                Tidak ada pengajuan yang menunggu Approval PIC Usaha saat ini.
-              </p>
-              <p className="text-xs">
-                Pengajuan baru akan muncul setelah Admin Accelera menyatakan Cek
-                Fisik Hardcopy Lengkap &amp; Lulus.
-              </p>
-            </div>
+            <EmptyState
+              icon={ShieldCheck}
+              title="Antrean Approval PIC Usaha Kosong"
+              description="Pengajuan baru akan muncul secara otomatis setelah Admin Accelera menyatakan Cek Fisik Hardcopy Lengkap & Lulus."
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -242,7 +259,7 @@ async function PicUsahaContent() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="font-mono text-xs font-semibold">
+                        <TableCell className="text-xs font-semibold whitespace-nowrap tabular-nums">
                           {formatRupiah(Number(row.amount))}
                         </TableCell>
 
@@ -404,14 +421,7 @@ async function PicUsahaContent() {
 
 export default function PicUsahaPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Antrean Approval PIC Usaha...
-        </div>
-      }
-    >
+    <Suspense fallback={<QueuePageSkeleton />}>
       <PicUsahaContent />
     </Suspense>
   );

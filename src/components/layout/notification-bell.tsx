@@ -134,11 +134,13 @@ export function NotificationBell({ role }: NotificationBellProps) {
       </Button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-80 sm:w-96 rounded-xl border bg-background shadow-xl">
-          <div className="flex items-center justify-between border-b px-4 py-3">
+        <div className="absolute right-0 z-50 mt-2 w-80 sm:w-96 rounded-2xl border border-border bg-popover text-popover-foreground shadow-xl">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
             <div>
-              <p className="text-xs font-bold">Notifikasi In-App</p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-sm font-bold text-foreground">
+                Notifikasi In-App
+              </p>
+              <p className="text-xs text-muted-foreground">
                 {unreadCount > 0
                   ? `${unreadCount} pesan belum dibaca`
                   : "Semua notifikasi telah dibaca"}
@@ -148,10 +150,10 @@ export function NotificationBell({ role }: NotificationBellProps) {
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
+                size="xs"
                 disabled={loading}
                 onClick={handleMarkAllRead}
-                className="h-7 gap-1 px-2 text-[11px]"
+                className="gap-1.5 text-xs"
               >
                 <CheckCheck className="size-3.5" />
                 Tandai Dibaca
@@ -159,10 +161,10 @@ export function NotificationBell({ role }: NotificationBellProps) {
             )}
           </div>
 
-          <div className="max-h-80 divide-y overflow-y-auto">
+          <div className="max-h-80 divide-y divide-border/70 overflow-y-auto">
             {notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-1.5 py-10 text-center text-xs text-muted-foreground">
-                <Inbox className="size-7 stroke-1" />
+              <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center text-sm text-muted-foreground">
+                <Inbox className="size-8 stroke-1" />
                 <p>Belum ada notifikasi masuk.</p>
               </div>
             ) : (
@@ -172,32 +174,32 @@ export function NotificationBell({ role }: NotificationBellProps) {
                   type="button"
                   onClick={() => handleNotificationClick(item)}
                   className={cn(
-                    "flex w-full flex-col gap-1 px-4 py-3 text-left text-xs transition-colors hover:bg-muted/60",
-                    !item.is_read && "bg-primary/5"
+                    "flex w-full cursor-pointer flex-col gap-1.5 px-4 py-3.5 text-left text-xs transition-colors hover:bg-accent/60",
+                    !item.is_read && "bg-brand-teal/8"
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span
                       className={cn(
-                        "font-semibold leading-snug",
+                        "text-sm font-semibold leading-snug",
                         !item.is_read ? "text-primary" : "text-foreground"
                       )}
                     >
                       {item.title}
                     </span>
                     {!item.is_read && (
-                      <span className="mt-1 size-2 shrink-0 rounded-full bg-primary" />
+                      <span className="mt-1.5 size-2 shrink-0 rounded-full bg-brand-teal" />
                     )}
                   </div>
-                  <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+                  <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                     {item.message}
                   </p>
-                  <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
+                  <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                     <span>{formatDateTimeWIB(item.created_at)}</span>
                     {item.submission_id && (
-                      <span className="inline-flex items-center gap-1 font-medium text-primary">
+                      <span className="inline-flex items-center gap-1 font-semibold text-brand-teal">
                         Buka Agenda
-                        <ExternalLink className="size-2.5" />
+                        <ExternalLink className="size-3" />
                       </span>
                     )}
                   </div>

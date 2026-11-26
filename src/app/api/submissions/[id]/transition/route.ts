@@ -38,7 +38,8 @@ export type TransitionActionType =
   | "pic_approve"
   | "pic_reject"
   | "akuntansi_approve"
-  | "akuntansi_reject";
+  | "akuntansi_reject"
+  | "cancel_submission";
 
 export type AkuntansiRejectTarget = "revisi_mitra" | "return_pic";
 
@@ -214,7 +215,7 @@ export async function POST(
     const isAkuntansiOrSuper =
       profile.role === "akuntansi" || profile.role === "super_admin";
 
-    // Penguncian Read-Only jika pengajuan sudah COMPLETED / Selesai
+    // Penguncian Read-Only jika pengajuan sudah COMPLETED / Selesai atau CANCELLED / Dibatalkan
     if (
       submission.current_stage === "COMPLETED" ||
       submission.final_status === "Selesai"
@@ -224,6 +225,19 @@ export async function POST(
           ok: false,
           error:
             "Pengajuan ini telah selesai dan SPP telah diterbitkan (Read-Only).",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      submission.current_stage === "CANCELLED" ||
+      submission.final_status === "Dibatalkan"
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Pengajuan ini sudah dibatalkan dan tidak dapat diubah lagi.",
         },
         { status: 400 }
       );
@@ -907,6 +921,7 @@ export async function POST(
           nextStage = "PIC_APPROVAL";
           nextFinalStatus = "Dalam Proses";
           nextFollowupAction = "Koordinasi Internal";
+          if (!nextFollowupPic) nextFollowupPic = "PIC Usaha";
           decisionLabel =
             "Validasi Akuntansi Tidak Lulus -> Kembalikan ke PIC Usaha";
           logNotes = `Temuan Akuntansi (Dikembalikan ke PIC Usaha): ${effectiveAccNotes}`;
@@ -917,12 +932,51 @@ export async function POST(
           nextStage = "REVISION_ACCOUNTING";
           nextFinalStatus = "Menunggu Mitra";
           nextFollowupAction = "Minta Revisi";
+          if (!nextFollowupPic) nextFollowupPic = "Mitra / Vendor";
           decisionLabel =
             "Validasi Akuntansi Tidak Lulus -> Revisi Mitra / Koordinasi Admin";
           logNotes = `Temuan Pajak / Akuntansi: ${effectiveAccNotes} (SLA di-PAUSE)`;
           notificationTitle = `Temuan Validasi Pajak & Akuntansi (${submission.agenda_no})`;
           notificationMessage = `Terdapat temuan validasi akuntansi/pajak pada invoice ${submission.invoice_no}: "${effectiveAccNotes}". Mohon perbaiki dokumen melalui Portal Mitra.`;
         }
+        break;
+      }
+
+      // -----------------------------------------------------------------------
+      // 8. PEMBATALAN PENGAJUAN (KHUSUS ADMIN ACCELERA & SUPER ADMIN SEBELUM SPP)
+      // -----------------------------------------------------------------------
+      case "cancel_submission": {
+        if (!isAdminOrSuper) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error:
+                "Hanya Admin Accelera atau Super Admin yang berwenang membatalkan pengajuan.",
+            },
+            { status: 403 }
+          );
+        }
+
+        const effectiveCancelReason = rawFindings || logNotes;
+        if (!effectiveCancelReason) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: "Alasan pembatalan pengajuan wajib diisi.",
+            },
+            { status: 400 }
+          );
+        }
+
+        nextStage = "CANCELLED";
+        nextFinalStatus = "Dibatalkan";
+        nextFindings = effectiveCancelReason;
+        nextFollowupAction = "Selesai";
+        closeLogDecision = "cancelled";
+        decisionLabel = "Pengajuan Dibatalkan";
+        logNotes = `Pengajuan dibatalkan: ${effectiveCancelReason}`;
+        notificationTitle = `Pengajuan Tagihan Dibatalkan (${submission.agenda_no})`;
+        notificationMessage = `Pengajuan tagihan untuk invoice ${submission.invoice_no} telah dibatalkan oleh ${profile.full_name} dengan alasan: "${effectiveCancelReason}". Nomor invoice kini dapat digunakan kembali jika ingin mengajukan ulang.`;
         break;
       }
 
@@ -972,9 +1026,11 @@ export async function POST(
     }
 
     // Apakah stage tujuan mem-PAUSE SLA?
-    // (SLA di-PAUSE jika stage termasuk SLA_PAUSED_STAGES atau final_status === 'Menunggu Mitra')
+    // (SLA di-PAUSE jika stage termasuk SLA_PAUSED_STAGES, CANCELLED, atau final_status === 'Menunggu Mitra')
     const nextIsPaused =
-      isStagePaused(nextStage) || nextFinalStatus === "Menunggu Mitra";
+      nextStage === "CANCELLED" ||
+      isStagePaused(nextStage) ||
+      nextFinalStatus === "Menunggu Mitra";
 
     // Update billing_submissions
     const updatePayload = {
@@ -1053,13 +1109,13 @@ export async function POST(
       }
     }
 
-    // Buka stage_log baru
+    // Buka stage_log baru (langsung tutup bila CANCELLED agar SLA berhenti permanen)
     const newStageLogPayload = {
       submission_id: submission.id,
       from_stage: currentStage,
       to_stage: nextStage,
       entered_at: nowIso,
-      exited_at: null,
+      exited_at: nextStage === "CANCELLED" ? nowIso : null,
       is_paused: nextIsPaused,
       working_days_spent: 0,
       action_by: user.id,

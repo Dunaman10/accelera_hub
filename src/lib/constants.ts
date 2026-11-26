@@ -2,10 +2,10 @@ import type { UserRole, SubmissionStage, DocCategory, FinalStatus, SlaStatus } f
 
 export const ROLE_DEFAULT_ROUTES: Record<UserRole, string> = {
   mitra: "/mitra",
-  admin_accelera: "/admin",
-  pic_usaha: "/pic",
-  akuntansi: "/akuntansi",
-  divisi_usaha: "/spp",
+  admin_accelera: "/dashboard",
+  pic_usaha: "/dashboard",
+  akuntansi: "/dashboard",
+  divisi_usaha: "/dashboard",
   super_admin: "/dashboard",
 };
 
@@ -185,27 +185,43 @@ export function formatBytes(bytes: number): string {
 export function getFinalStatusBadgeClass(status: FinalStatus): string {
   switch (status) {
     case "Selesai":
-      return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30";
+      return "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30";
     case "Menunggu Mitra":
-      return "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30";
+      return "bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30";
     case "Dibatalkan":
-      return "bg-destructive/15 text-destructive border-destructive/30";
+      return "bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30";
     case "Dalam Proses":
     default:
-      return "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30";
+      return "bg-sky-50 text-sky-700 border-sky-200/80 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30";
   }
 }
 
 export function getSlaStatusBadgeClass(status: SlaStatus): string {
   switch (status) {
     case "Sesuai SLA":
-      return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30";
+      return "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30";
     case "Perlu Perhatian":
-      return "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30";
+      return "bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30";
     case "Terlambat":
-      return "bg-destructive/15 text-destructive border-destructive/30";
+      return "bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30";
     case "Dalam Proses":
     default:
-      return "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30";
+      return "bg-sky-50 text-sky-700 border-sky-200/80 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30";
+  }
+}
+
+export function getCheckStatusBadgeClass(status: string): string {
+  switch (status) {
+    case "Pass":
+    case "Lengkap":
+    case "Lulus":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30";
+    case "Revisi":
+    case "Tidak Lengkap":
+    case "Tidak Lulus":
+      return "bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30";
+    case "Belum Diperiksa":
+    default:
+      return "bg-slate-100 text-slate-600 border-slate-200/80 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
   }
 }

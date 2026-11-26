@@ -28,6 +28,17 @@ import {
   compressImageIfNeeded,
   uploadFileToGoogleDriveResumable,
 } from "@/lib/image-compression";
+import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,6 +78,9 @@ export function MitraRevisionPanel({
     React.useState<number>(0);
   const [resubmitNotes, setResubmitNotes] = React.useState<string>("");
   const [resubmitting, setResubmitting] = React.useState<boolean>(false);
+  const [confirmResubmitOpen, setConfirmResubmitOpen] = React.useState(false);
+  const [draggingCategory, setDraggingCategory] =
+    React.useState<DocCategory | null>(null);
 
   // Kelompokkan dokumen per kategori (terbaru vs riwayat arsip)
   function getCategoryDocs(category: DocCategory) {
@@ -246,7 +260,7 @@ export function MitraRevisionPanel({
 
   return (
     <Card className="border-destructive/50 bg-destructive/5 shadow-xs">
-      <CardHeader className="border-b border-destructive/20 pb-4">
+      <CardHeader className="border-b border-destructive/20">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-2.5">
             <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
@@ -254,7 +268,7 @@ export function MitraRevisionPanel({
               <CardTitle className="text-base text-destructive">
                 Tindak Lanjut Revisi Dokumen ({STAGE_LABELS[submission.current_stage]})
               </CardTitle>
-              <CardDescription className="mt-0.5 text-xs">
+              <CardDescription className="mt-1 text-sm">
                 Unggah dokumen pengganti pada kategori yang memerlukan perbaikan,
                 lalu klik tombol <strong>&ldquo;Kirim Ulang Pengajuan&rdquo;</strong>{" "}
                 di bawah. File versi lama tetap tersimpan aman untuk jejak audit.
@@ -262,13 +276,13 @@ export function MitraRevisionPanel({
             </div>
           </div>
 
-          <Badge variant="destructive" className="text-[11px]">
+          <Badge variant="destructive" className="text-xs">
             Menunggu Revisi Mitra • SLA Di-Pause
           </Badge>
         </div>
 
         {/* KOTAK PERINGATAN MERAH CATATAN TEMUAN SPESIFIK DARI PEMERIKSA */}
-        <div className="mt-3 rounded-xl border border-destructive/40 bg-background p-3.5 text-xs">
+        <div className="mt-3 rounded-xl border border-destructive/40 bg-card p-4 text-sm">
           <p className="font-bold text-destructive">
             Catatan Temuan / Kekurangan dari Pemeriksa:
           </p>
@@ -279,16 +293,41 @@ export function MitraRevisionPanel({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-3 pt-4">
+      <CardContent className="space-y-3.5">
         {DOC_CATEGORY_META.map((meta) => {
           const { allInCat, latestDoc } = getCategoryDocs(meta.category);
           const isUploadingThis = uploadingCategory === meta.category;
+          const isDraggingThis = draggingCategory === meta.category;
           const inputId = `revision-upload-${meta.category}`;
 
           return (
             <div
               key={meta.category}
-              className="rounded-xl border bg-background p-3.5 text-xs shadow-2xs"
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (uploadingCategory === null && !resubmitting) {
+                  setDraggingCategory(meta.category);
+                }
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                if (draggingCategory === meta.category) {
+                  setDraggingCategory(null);
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDraggingCategory(null);
+                if (uploadingCategory === null && !resubmitting) {
+                  handleUploadRevisionFile(meta.category, e.dataTransfer.files);
+                }
+              }}
+              className={cn(
+                "rounded-xl border p-3.5 text-xs shadow-2xs transition-colors",
+                isDraggingThis
+                  ? "border-2 border-dashed border-primary bg-primary/8"
+                  : "bg-background"
+              )}
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
@@ -415,7 +454,7 @@ export function MitraRevisionPanel({
           type="button"
           size="lg"
           disabled={resubmitting || uploadingCategory !== null}
-          onClick={handleResubmitSubmission}
+          onClick={() => setConfirmResubmitOpen(true)}
           className="gap-2"
         >
           {resubmitting ? (
@@ -431,6 +470,37 @@ export function MitraRevisionPanel({
           )}
         </Button>
       </CardFooter>
+
+      <AlertDialog
+        open={confirmResubmitOpen}
+        onOpenChange={setConfirmResubmitOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Kirim Ulang Pengajuan Revisi?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Pengajuan <strong>{submission.agenda_no}</strong> akan dikirim
+              kembali ke antrean pemeriksaan internal dan timer SLA akan
+              kembali aktif berjalan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resubmitting}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={resubmitting}
+              onClick={() => {
+                setConfirmResubmitOpen(false);
+                void handleResubmitSubmission();
+              }}
+            >
+              {resubmitting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              Ya, Kirim Ulang
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

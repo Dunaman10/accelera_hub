@@ -37,6 +37,18 @@ import {
 } from "@/lib/constants";
 import { formatTerbilangRupiah } from "@/lib/format-terbilang";
 import { DocumentViewer } from "@/components/documents/document-viewer";
+import { SetBreadcrumbLabel } from "@/components/layout/breadcrumb-context";
+import { PageGuide } from "@/components/layout/page-guide";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,6 +80,7 @@ export function SppSubmissionInspectClient({
 }: SppSubmissionInspectClientProps) {
   const router = useRouter();
   const [issuing, setIssuing] = React.useState(false);
+  const [confirmIssueOpen, setConfirmIssueOpen] = React.useState(false);
   const [sppNotes, setSppNotes] = React.useState<string>(
     sppDocument?.notes ?? ""
   );
@@ -137,24 +150,53 @@ export function SppSubmissionInspectClient({
   }
 
   return (
-    <div className="space-y-4">
-      {/* TOP BAR */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background p-4 shadow-2xs">
-        <div className="space-y-1">
+    <div className="space-y-5">
+      <SetBreadcrumbLabel label={submission.agenda_no} />
+
+      <PageGuide
+        eyebrow={`Finalisasi SPP Digital • ${STAGE_LABELS[stage]}`}
+        title={`Penerbitan SPP ${submission.agenda_no}`}
+        purpose="Layar split-screen finalisasi Surat Pengajuan Pembayaran (SPP) untuk memastikan seluruh berkas & nominal terbilang sesuai sebelum menerbitkan PDF resmi ber-QR Code dan mengunci pengajuan secara Read-Only."
+        defaultCollapsed={true}
+        tip={
+          sppDocument
+            ? `SPP ${sppDocument.spp_no} telah terbit dan terkunci permanen. Anda dapat mengunduh PDF SPP maupun Lembar Hasil Cek.`
+            : "Gunakan tombol Pratinjau PDF Draft SPP terlebih dahulu bila ingin memeriksa tampilan sebelum menerbitkan SPP final."
+        }
+        topSlot={
           <Link
             href="/spp"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" />
             Kembali ke Antrean &amp; Arsip SPP
           </Link>
+        }
+        steps={[
+          {
+            title: "Periksa Berkas & Nominal",
+            description:
+              "Tinjau kelengkapan dokumen di layar kiri serta nominal Rupiah & terbilang di panel kanan.",
+            badge: "Langkah 1",
+            status: sppDocument ? "completed" : "active",
+          },
+          {
+            title: "Terbitkan PDF SPP Ber-QR",
+            description:
+              "Klik Terbitkan SPP untuk membuat nomor SPP, menyematkan QR verifikasi, dan mengunggah otomatis ke Google Drive.",
+            badge: "SLA 1 HK",
+            status: sppDocument ? "completed" : undefined,
+          },
+          {
+            title: "Kunci 1:1 & Kirim Keuangan",
+            description:
+              "Status berubah menjadi Selesai (Read-Only), argo SLA berhenti, dan PDF siap diteruskan ke Keuangan.",
+            badge: "Final",
+            status: sppDocument ? "active" : undefined,
+          },
+        ]}
+        actions={
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-mono text-xl font-bold tracking-tight">
-              {submission.agenda_no}
-            </h1>
-            <Badge variant="outline" className="font-semibold">
-              {STAGE_LABELS[stage]}
-            </Badge>
             <Badge
               variant="outline"
               className={getFinalStatusBadgeClass(submission.final_status)}
@@ -173,70 +215,68 @@ export function SppSubmissionInspectClient({
                 variant="outline"
                 className="gap-1 border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
               >
-                <Lock className="size-3" />
+                <Lock className="size-3.5" />
                 Terkunci Read-Only (SPP Terbit)
               </Badge>
             ) : (
               <Badge
                 variant="outline"
-                className="gap-1 border-sky-500/40 bg-sky-500/15 text-sky-800 dark:text-sky-300"
+                className="gap-1 border-brand-teal/40 bg-brand-teal/15 text-accent-foreground"
               >
-                <Clock className="size-3" />
+                <Clock className="size-3.5" />
                 SLA SPP: {stageSla.label}
               </Badge>
             )}
-          </div>
-        </div>
-
-        {/* TOMBOL UNDUH 2 PDF RESMI */}
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={`/api/submissions/${submission.id}/pdf?type=checksheet&download=1`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <Download className="size-3.5" />
-              Unduh PDF Lembar Hasil Cek &amp; Approval
-            </Button>
-          </a>
-          <a
-            href={`/api/submissions/${submission.id}/pdf?type=spp&download=1`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button
-              variant={sppDocument ? "default" : "outline"}
-              size="sm"
-              className="gap-1.5 text-xs"
+            <a
+              href={`/api/submissions/${submission.id}/pdf?type=checksheet&download=1`}
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              <Download className="size-3.5" />
-              {sppDocument ? `Unduh PDF SPP (${sppDocument.spp_no})` : "Pratinjau PDF Draft SPP"}
-            </Button>
-          </a>
-        </div>
-      </div>
+              <Button variant="outline" size="default" className="gap-1.5 text-xs">
+                <Download className="size-4 text-brand-teal" />
+                Unduh Lembar Cek
+              </Button>
+            </a>
+            <a
+              href={`/api/submissions/${submission.id}/pdf?type=spp&download=1`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button
+                variant={sppDocument ? "default" : "outline"}
+                size="default"
+                className="gap-1.5 text-xs"
+              >
+                <Download className="size-4" />
+                {sppDocument
+                  ? `Unduh PDF SPP (${sppDocument.spp_no})`
+                  : "Pratinjau Draft SPP"}
+              </Button>
+            </a>
+          </div>
+        }
+      />
 
       {/* SPLIT-SCREEN DESKTOP */}
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-5 lg:h-[calc(100vh-12rem)] lg:flex-row lg:items-stretch lg:overflow-hidden">
         {/* KIRI (55%): PREVIEW DOKUMEN */}
-        <div className="w-full lg:w-[55%] lg:sticky lg:top-18">
-          <DocumentViewer documents={documents} />
+        <div className="w-full lg:flex lg:h-full lg:w-[55%] lg:flex-col">
+          <DocumentViewer documents={documents} className="lg:h-full" />
         </div>
 
-        {/* KANAN (45%): PANEL FINALISASI SPP & RINGKASAN */}
-        <div className="w-full space-y-5 lg:w-[45%]">
+        {/* KANAN (45%): PANEL FINALISASI SPP & RINGKASAN (SCROLL INDEPENDEN) */}
+        <div className="w-full space-y-5 lg:h-full lg:w-[45%] lg:overflow-y-auto lg:pr-1">
           {/* 1. PANEL PENERBITAN / STATUS SPP */}
-          <Card className="border-primary/40 shadow-xs">
-            <CardHeader className="border-b bg-primary/5 pb-3">
+          <Card className="border-brand-teal/35 shadow-xs">
+            <CardHeader className="border-b border-border bg-brand-teal/8">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <QrCode className="size-4 text-primary" />
+                  <QrCode className="size-4 text-brand-teal" />
                   {sppDocument
                     ? "Dokumen SPP Resmi Telah Diterbitkan"
                     : "Finalisasi & Penerbitan SPP (1:1 Lock)"}
                 </CardTitle>
-                <Badge variant="default" className="text-[10px]">
+                <Badge variant="default" className="text-xs">
                   {sppDocument ? sppDocument.spp_no : "Target SLA: 1 HK"}
                 </Badge>
               </div>
@@ -247,7 +287,7 @@ export function SppSubmissionInspectClient({
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-4 pt-4 text-xs">
+            <CardContent className="space-y-4 text-sm">
               {/* RINGKASAN NOMINAL & TERBILANG */}
               <div className="rounded-xl border bg-primary/5 p-3.5 space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -414,7 +454,7 @@ export function SppSubmissionInspectClient({
                     type="button"
                     size="lg"
                     disabled={issuing || !canIssueSpp}
-                    onClick={handleFinalizeSpp}
+                    onClick={() => setConfirmIssueOpen(true)}
                     className="w-full gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
                   >
                     {issuing ? (
@@ -470,6 +510,39 @@ export function SppSubmissionInspectClient({
           </Card>
         </div>
       </div>
+
+      <AlertDialog open={confirmIssueOpen} onOpenChange={setConfirmIssueOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Terbitkan SPP Final &amp; Kunci Read-Only?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Setelah diterbitkan, PDF SPP resmi ber-QR Code untuk{" "}
+              <strong>{submission.agenda_no}</strong> senilai{" "}
+              <strong className="tabular-nums">
+                {formatRupiah(Number(submission.amount))}
+              </strong>{" "}
+              akan diarsipkan ke Google Drive dan pengajuan dikunci permanen
+              dengan status <strong>Selesai</strong>. Tindakan ini tidak dapat
+              dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={issuing}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={issuing}
+              onClick={() => {
+                setConfirmIssueOpen(false);
+                void handleFinalizeSpp();
+              }}
+            >
+              {issuing ? <Loader2 className="size-4 animate-spin" /> : null}
+              Ya, Terbitkan SPP Final
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

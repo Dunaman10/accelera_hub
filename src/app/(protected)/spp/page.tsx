@@ -8,8 +8,6 @@ import {
   ExternalLink,
   Eye,
   FileCheck2,
-  FileText,
-  Loader2,
   QrCode,
   Send,
 } from "lucide-react";
@@ -32,6 +30,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageGuide } from "@/components/layout/page-guide";
+import { QueuePageSkeleton } from "@/components/ui/page-skeletons";
 import {
   Table,
   TableBody,
@@ -107,60 +108,77 @@ async function SppMonitoringContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Divisi Usaha &amp; Penerbitan PDF SPP Digital
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Penyusunan Surat Pengajuan Pembayaran (SPP) ber-QR Code, pengarsipan
-            otomatis ke Google Drive, dan pengiriman ke Keuangan pada hari yang
-            sama (Target SLA: 1 Hari Kerja).
-          </p>
-        </div>
-
-        <Badge variant="default" className="gap-1.5 px-3 py-1 text-xs">
-          <Clock className="size-3.5" />
-          Target SLA SPP: 1 Hari Kerja (Kirim ke Keuangan Hari yang Sama)
-        </Badge>
-      </div>
+      <PageGuide
+        eyebrow="Tahap 6 dari 6 • Finalisasi SPP Digital"
+        title="Divisi Usaha & Penerbitan PDF SPP Digital"
+        purpose="Halaman penyusunan, penerbitan, dan pengarsipan Surat Pengajuan Pembayaran (SPP) resmi ber-QR Code bagi seluruh pengajuan yang telah lulus Validasi Akuntansi."
+        tip="Setelah SPP diterbitkan, dokumen otomatis diarsipkan ke Google Drive dan pengajuan terkunci 1:1 (Read-Only)."
+        steps={[
+          {
+            title: "Lulus Validasi Akuntansi",
+            description:
+              "Semua gerbang sebelumnya (Pre-Check, Cek Fisik, PIC Usaha, Akuntansi) telah dinyatakan Lulus.",
+            badge: "Selesai",
+            status: "completed",
+          },
+          {
+            title: "Susun & Terbitkan SPP",
+            description:
+              "Klik Susun & Terbitkan SPP pada antrean aktif untuk meninjau nominal, terbilang, dan menerbitkan PDF ber-QR.",
+            badge: "Anda di sini • 1 HK",
+            status: "active",
+          },
+          {
+            title: "Arsip & Kirim Keuangan",
+            description:
+              "PDF SPP tersimpan otomatis ke Google Drive, status menjadi Selesai, dan siap dicairkan Keuangan.",
+            badge: "Terkunci 1:1",
+          },
+        ]}
+        actions={
+          <Badge variant="default" className="gap-1.5 px-3 py-1.5 text-xs">
+            <Clock className="size-3.5" />
+            Target SLA SPP: 1 Hari Kerja (Kirim Hari yang Sama)
+          </Badge>
+        }
+      />
 
       {/* METRIK RINGKASAN SPP */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-medium">
-              Antrean Siap Terbit SPP (Tahap Penyusunan SPP)
+        <Card className="border-t-4 border-t-brand-teal bg-brand-teal/5">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
+              Antrean Siap Terbit SPP
             </CardDescription>
-            <CardTitle className="font-mono text-2xl font-bold text-primary">
+            <CardTitle className="font-mono text-3xl font-extrabold text-brand-teal">
               {activeSppQueue.length}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-[11px] text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground">
             Telah lulus Validasi Akuntansi • Menunggu Finalisasi SPP
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-medium">
+        <Card className="border-t-4 border-t-emerald-600 dark:border-t-emerald-400">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
               Total Dokumen SPP Resmi Diterbitkan
             </CardDescription>
-            <CardTitle className="font-mono text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+            <CardTitle className="font-mono text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
               {sppRows.length}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-[11px] text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground">
             Terkunci 1:1 (Read-Only) &amp; Dikirim ke Keuangan
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-medium">
+        <Card className="border-t-4 border-t-brand-navy dark:border-t-sky-400">
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold tracking-wide uppercase">
               Total Nilai SPP Terbit
             </CardDescription>
-            <CardTitle className="font-mono text-xl font-bold">
+            <CardTitle className="text-2xl font-extrabold tabular-nums">
               {formatRupiah(
                 sppRows.reduce((sum, s) => {
                   const sub = submissionMap.get(s.submission_id);
@@ -169,7 +187,7 @@ async function SppMonitoringContent() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-[11px] text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground">
             Akumulasi tagihan yang telah diterbitkan SPP
           </CardContent>
         </Card>
@@ -192,16 +210,11 @@ async function SppMonitoringContent() {
         </CardHeader>
         <CardContent>
           {activeSppQueue.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-              <FileText className="size-9 stroke-1 opacity-60" />
-              <p className="font-medium">
-                Tidak ada pengajuan yang menunggu penerbitan SPP saat ini.
-              </p>
-              <p className="text-xs">
-                Pengajuan akan masuk ke antrean ini segera setelah Tim Akuntansi
-                menyatakan Validasi Lulus.
-              </p>
-            </div>
+            <EmptyState
+              icon={Send}
+              title="Antrean Penerbitan SPP Kosong"
+              description="Pengajuan akan masuk ke meja penerbitan SPP segera setelah Tim Akuntansi menyatakan Validasi Lulus."
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -456,14 +469,7 @@ async function SppMonitoringContent() {
 
 export default function SppMonitoringPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Meja Divisi Usaha &amp; Penerbitan SPP...
-        </div>
-      }
-    >
+    <Suspense fallback={<QueuePageSkeleton />}>
       <SppMonitoringContent />
     </Suspense>
   );

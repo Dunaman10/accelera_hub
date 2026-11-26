@@ -186,7 +186,7 @@ export function buildMitraEmailTemplate(params: {
     const subject = `[Accelera HUB] Pre-Check Softcopy PASS — ${submission.agenda_no} (${submission.invoice_no})`;
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
-        <div style="background-color: #1F4E78; color: #ffffff; padding: 18px 24px;">
+        <div style="background-color: #0B2E5C; color: #ffffff; padding: 18px 24px; border-bottom: 3px solid #059C95;">
           <h2 style="margin: 0; font-size: 18px;">ACCELERA HUB — Pre-Check Softcopy PASS</h2>
         </div>
         <div style="padding: 20px 24px; color: #1e293b; font-size: 14px; line-height: 1.6;">
@@ -203,7 +203,7 @@ export function buildMitraEmailTemplate(params: {
             Silakan kirimkan berkas fisik (Hardcopy) asli ke Loket Accelera dengan mencantumkan Nomor Agenda <strong>${escapeHtml(submission.agenda_no)}</strong> pada amplop dokumen.
           </div>
           <p style="margin-top: 20px;">
-            <a href="${detailUrl}" style="background-color: #1F4E78; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; display: inline-block;">Lihat Detail Pengajuan</a>
+            <a href="${detailUrl}" style="background-color: #0B2E5C; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; display: inline-block;">Lihat Detail Pengajuan</a>
           </p>
         </div>
       </div>
@@ -248,21 +248,21 @@ export function buildMitraEmailTemplate(params: {
   const subject = `[Accelera HUB] SPP Resmi Terbit (${sppNo ?? "Selesai"}) — ${submission.agenda_no}`;
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
-      <div style="background-color: #548235; color: #ffffff; padding: 18px 24px;">
+      <div style="background-color: #059C95; color: #ffffff; padding: 18px 24px;">
         <h2 style="margin: 0; font-size: 18px;">ACCELERA HUB — SPP Resmi Diterbitkan</h2>
       </div>
       <div style="padding: 20px 24px; color: #1e293b; font-size: 14px; line-height: 1.6;">
         <p>Yth. Bapak/Ibu PIC <strong>${escapeHtml(vendorName)}</strong>,</p>
         <p>Seluruh rangkaian verifikasi &amp; validasi tagihan Anda telah <strong>SELESAI</strong> dan Surat Pengajuan Pembayaran (SPP) telah diterbitkan ke bagian Keuangan:</p>
         <table style="width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13px;">
-          <tr><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Nomor SPP</td><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #548235;">${escapeHtml(sppNo || "-")}</td></tr>
+          <tr><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Nomor SPP</td><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #059C95;">${escapeHtml(sppNo || "-")}</td></tr>
           <tr><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Nomor Agenda</td><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${escapeHtml(submission.agenda_no)}</td></tr>
           <tr><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Nomor Invoice</td><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${escapeHtml(submission.invoice_no)}</td></tr>
           <tr><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Nilai Tagihan</td><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${escapeHtml(formattedAmount)}</td></tr>
           <tr><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Durasi SLA Internal</td><td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0;">${submission.actual_working_days} / ${submission.sla_target_days} Hari Kerja (${escapeHtml(submission.sla_status)})</td></tr>
         </table>
         <p style="margin-top: 20px;">
-          <a href="${detailUrl}" style="background-color: #548235; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; display: inline-block;">Lihat Status &amp; Bukti SPP</a>
+          <a href="${detailUrl}" style="background-color: #059C95; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; display: inline-block;">Lihat Status &amp; Bukti SPP</a>
         </p>
       </div>
     </div>
