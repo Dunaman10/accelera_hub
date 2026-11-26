@@ -2,6 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { ensureSubmissionDriveFolder } from "@/lib/google-drive";
 import { SLA_TOTAL_TARGET_DAYS } from "@/lib/sla";
+import { recalculateSubmissionSlaServer } from "@/lib/sla/server";
+import {
+  buildTelegramStageTransitionMessage,
+  sendTelegramMessage,
+} from "@/lib/notifications";
 import type { BillingSubmission } from "@/types";
 
 const DUPLICATE_INVOICE_MESSAGE =
@@ -320,10 +325,51 @@ export async function POST(request: NextRequest) {
       console.error("Failed inserting initial stage_log:", stageLogError.message);
     }
 
+    // 5. Sinkronkan kalkulasi SLA awal & kirim notifikasi ke Admin Accelera + Telegram
+    const recalculated = await recalculateSubmissionSlaServer(
+      createdSubmission.id,
+      nowIso
+    );
+    const syncedSubmission = recalculated.submission ?? finalSubmission;
+
+    const { data: adminRecipients } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .in("role", ["admin_accelera", "super_admin"])
+      .eq("is_active", true);
+
+    if (adminRecipients && adminRecipients.length > 0) {
+      const notifRows = adminRecipients
+        .filter((r) => r.id !== user.id)
+        .map((r) => ({
+          recipient_id: r.id,
+          submission_id: syncedSubmission.id,
+          title: `Pengajuan Softcopy Baru (${syncedSubmission.agenda_no})`,
+          message: `${vendorRow.name} mengajukan invoice ${syncedSubmission.invoice_no} dan masuk antrean Pre-Check Softcopy.`,
+          channel: "IN_APP",
+          is_read: false,
+          sent_at: nowIso,
+        }));
+      if (notifRows.length > 0) {
+        await adminSupabase.from("notifications").insert(notifRows);
+      }
+    }
+
+    const telegramMsg = buildTelegramStageTransitionMessage({
+      submission: syncedSubmission,
+      vendorName: vendorRow.name,
+      fromStage: "SUBMITTED",
+      toStage: "PRE_CHECK",
+      decisionLabel: "Pengajuan Softcopy Baru Dikirim",
+      actorName: profile.full_name,
+      findings: notes,
+    });
+    await sendTelegramMessage(telegramMsg);
+
     return NextResponse.json(
       {
         ok: true,
-        submission: finalSubmission,
+        submission: syncedSubmission,
         drive_folder_id: driveFolderId,
         drive_folder_path: driveFolderPath,
       },

@@ -10,6 +10,7 @@ const PROTECTED_PREFIXES = [
   "/akuntansi",
   "/spp",
   "/dashboard",
+  "/monitoring",
 ];
 
 function isProtectedRoute(pathname: string): boolean {

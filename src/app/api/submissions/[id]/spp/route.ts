@@ -6,9 +6,17 @@ import {
 } from "@/lib/google-drive";
 import {
   calculateWorkingDays,
-  evaluateSlaStatus,
-  SLA_TOTAL_TARGET_DAYS,
 } from "@/lib/sla";
+import {
+  fetchHolidayDateStrings,
+  recalculateSubmissionSlaServer,
+} from "@/lib/sla/server";
+import {
+  buildMitraEmailTemplate,
+  buildTelegramStageTransitionMessage,
+  sendResendEmail,
+  sendTelegramMessage,
+} from "@/lib/notifications";
 import { generateSppPdf } from "@/lib/pdf/spp-pdf";
 import type { BillingSubmission, Profile, SppDocument } from "@/types";
 
@@ -346,7 +354,10 @@ export async function POST(
     }
 
     // 4. Hitung final SLA & tutup stage_logs terakhir (decision = 'spp_issued')
-    const holidayDates = (holidays ?? []).map((h) => h.holiday_date);
+    const holidayDates =
+      holidays && holidays.length > 0
+        ? holidays.map((h) => h.holiday_date)
+        : await fetchHolidayDateStrings();
     const openLog = logs.find((l) => l.exited_at === null) ?? null;
 
     let openLogWorkingDays = 0;
@@ -355,20 +366,6 @@ export async function POST(
         ? 0
         : calculateWorkingDays(openLog.entered_at, nowIso, holidayDates);
     }
-
-    const closedWorkingDaysSum = logs
-      .filter((l) => l.exited_at !== null && !l.is_paused)
-      .reduce((acc, row) => acc + Number(row.working_days_spent ?? 0), 0);
-
-    const totalActualWorkingDays = Number(
-      (closedWorkingDaysSum + openLogWorkingDays).toFixed(2)
-    );
-
-    const finalSlaStatus = evaluateSlaStatus(
-      totalActualWorkingDays,
-      submission.sla_target_days || SLA_TOTAL_TARGET_DAYS,
-      true
-    );
 
     if (openLog) {
       await adminSupabase
@@ -404,8 +401,6 @@ export async function POST(
         final_status: "Selesai",
         followup_action: "Selesai",
         completed_date: nowIso,
-        actual_working_days: totalActualWorkingDays,
-        sla_status: finalSlaStatus,
       })
       .eq("id", submission.id)
       .select("*")
@@ -423,7 +418,15 @@ export async function POST(
       );
     }
 
-    // Kirim notifikasi ke Mitra bahwa SPP telah selesai diterbitkan
+    // 6. Panggil mesin kalkulasi SLA (recalculate_submission_sla) agar durasi & status SLA sinkron
+    const recalculatedSla = await recalculateSubmissionSlaServer(
+      submission.id,
+      nowIso
+    );
+    const finalSubmission =
+      recalculatedSla.submission ?? (updatedSubmission as BillingSubmission);
+
+    // 7. Kirim notifikasi In-App ke Mitra bahwa SPP telah selesai diterbitkan
     if (submission.submitted_by) {
       await adminSupabase.from("notifications").insert({
         recipient_id: submission.submitted_by,
@@ -436,10 +439,53 @@ export async function POST(
       });
     }
 
+    // 8. Kirim Notifikasi Telegram ke Grup Internal
+    const telegramMsg = buildTelegramStageTransitionMessage({
+      submission: finalSubmission,
+      vendorName: vendor?.name ?? "Mitra",
+      fromStage: submission.current_stage,
+      toStage: "COMPLETED",
+      decisionLabel: `SPP Terbit & Dikirim ke Keuangan (${sppNo})`,
+      actorName: profile.full_name,
+      sppNo,
+    });
+    await sendTelegramMessage(telegramMsg);
+
+    // 9. Kirim Email Otomatis (Resend REST API via fetch) ke Mitra saat SPP Selesai
+    const { data: submitterProfile } = await adminSupabase
+      .from("profiles")
+      .select("email")
+      .eq("id", submission.submitted_by)
+      .maybeSingle();
+
+    const mitraEmails = Array.from(
+      new Set(
+        [vendor?.email, submitterProfile?.email]
+          .map((e) => e?.trim())
+          .filter((e): e is string => Boolean(e))
+      )
+    );
+
+    if (mitraEmails.length > 0) {
+      const tpl = buildMitraEmailTemplate({
+        eventType: "spp_completed",
+        submission: finalSubmission,
+        vendorName: vendor?.name ?? "Mitra",
+        sppNo,
+        appUrl: origin,
+      });
+      await sendResendEmail({
+        to: mitraEmails,
+        subject: tpl.subject,
+        html: tpl.html,
+        text: tpl.text,
+      });
+    }
+
     return NextResponse.json({
       ok: true,
       spp: createdSpp as SppDocument,
-      submission: updatedSubmission as BillingSubmission,
+      submission: finalSubmission,
       drive_file_id: driveFileId,
       drive_upload_warning: driveUploadWarning,
       verification_url: qrVerificationUrl,

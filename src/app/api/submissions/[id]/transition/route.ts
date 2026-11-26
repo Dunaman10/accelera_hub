@@ -2,10 +2,19 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
   calculateWorkingDays,
-  evaluateSlaStatus,
   isStagePaused,
   SLA_TOTAL_TARGET_DAYS,
 } from "@/lib/sla";
+import {
+  fetchHolidayDateStrings,
+  recalculateSubmissionSlaServer,
+} from "@/lib/sla/server";
+import {
+  buildMitraEmailTemplate,
+  buildTelegramStageTransitionMessage,
+  sendResendEmail,
+  sendTelegramMessage,
+} from "@/lib/notifications";
 import { STAGE_LABELS } from "@/lib/constants";
 import type {
   BillingSubmission,
@@ -929,19 +938,29 @@ export async function POST(
     }
 
     // =========================================================================
-    // PERHITUNGAN HARI KERJA SLA & UPDATE STAGE_LOGS
+    // PERHITUNGAN HARI KERJA SLA, UPDATE STAGE_LOGS & RECALCULATE_SUBMISSION_SLA
     // =========================================================================
 
-    const [{ data: holidays }, { data: allLogs }] = await Promise.all([
-      supabase.from("national_holidays").select("holiday_date"),
-      supabase
-        .from("stage_logs")
-        .select("*")
-        .eq("submission_id", submission.id)
-        .order("entered_at", { ascending: true }),
-    ]);
+    const [holidayDates, { data: allLogs }, { data: vendorRow }, { data: submitterProfile }] =
+      await Promise.all([
+        fetchHolidayDateStrings(),
+        supabase
+          .from("stage_logs")
+          .select("*")
+          .eq("submission_id", submission.id)
+          .order("entered_at", { ascending: true }),
+        supabase
+          .from("vendors")
+          .select("id, name, email, pic_name, whatsapp_number")
+          .eq("id", submission.vendor_id)
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("id, email, full_name")
+          .eq("id", submission.submitted_by)
+          .maybeSingle(),
+      ]);
 
-    const holidayDates = (holidays ?? []).map((h) => h.holiday_date);
     const existingLogs = allLogs ?? [];
     const openLog = existingLogs.find((l) => l.exited_at === null) ?? null;
 
@@ -951,22 +970,6 @@ export async function POST(
         ? 0
         : calculateWorkingDays(openLog.entered_at, nowIso, holidayDates);
     }
-
-    // Total akumulasi hari kerja internal dari semua log tertutup + log yang baru ditutup
-    const closedWorkingDaysSum = existingLogs
-      .filter((l) => l.exited_at !== null && !l.is_paused)
-      .reduce((acc, row) => acc + Number(row.working_days_spent ?? 0), 0);
-
-    const totalActualWorkingDays = Number(
-      (closedWorkingDaysSum + openLogWorkingDays).toFixed(2)
-    );
-
-    const isCompletedStage = (nextStage as SubmissionStage) === "COMPLETED";
-    const nextSlaStatus = evaluateSlaStatus(
-      totalActualWorkingDays,
-      submission.sla_target_days || SLA_TOTAL_TARGET_DAYS,
-      isCompletedStage
-    );
 
     // Apakah stage tujuan mem-PAUSE SLA?
     // (SLA di-PAUSE jika stage termasuk SLA_PAUSED_STAGES atau final_status === 'Menunggu Mitra')
@@ -985,8 +988,6 @@ export async function POST(
       followup_action: nextFollowupAction,
       followup_pic: nextFollowupPic,
       hardcopy_date: nextHardcopyDate,
-      actual_working_days: totalActualWorkingDays,
-      sla_status: nextSlaStatus,
       ...(body.target_finish_date !== undefined
         ? { target_finish_date: body.target_finish_date || null }
         : {}),
@@ -1074,9 +1075,17 @@ export async function POST(
       await adminSupabase.from("stage_logs").insert(newStageLogPayload);
     }
 
-    // Buat notifikasi in-app untuk pengaju (submitted_by) bila yang melakukan aksi bukan dirinya sendiri
+    // Panggil mesin kalkulasi SLA (recalculate_submission_sla) agar durasi aktual & status SLA selalu sinkron
+    const recalculatedSla = await recalculateSubmissionSlaServer(
+      submission.id,
+      nowIso
+    );
+    const finalSubmission =
+      recalculatedSla.submission ?? (updatedSubmission as BillingSubmission);
+
+    // 1. Buat notifikasi In-App di tabel `notifications`
     if (notificationTitle && submission.submitted_by) {
-      await supabase.from("notifications").insert({
+      await adminSupabase.from("notifications").insert({
         recipient_id: submission.submitted_by,
         submission_id: submission.id,
         title: notificationTitle,
@@ -1087,14 +1096,120 @@ export async function POST(
       });
     }
 
+    // Bila transisi menuju PIC Usaha / Akuntansi / SPP / Admin, kirim juga In-App Notification ke petugas terkait
+    if (
+      nextStage === "PIC_APPROVAL" ||
+      nextStage === "ACCOUNTING_APPROVAL" ||
+      nextStage === "SPP_PROCESSING" ||
+      action === "mitra_resubmit"
+    ) {
+      const targetRoles =
+        nextStage === "PIC_APPROVAL"
+          ? ["pic_usaha"]
+          : nextStage === "ACCOUNTING_APPROVAL"
+          ? ["akuntansi"]
+          : nextStage === "SPP_PROCESSING"
+          ? ["divisi_usaha", "akuntansi"]
+          : ["admin_accelera"];
+
+      const { data: internalRecipients } = await adminSupabase
+        .from("profiles")
+        .select("id")
+        .in("role", targetRoles as Array<"pic_usaha" | "akuntansi" | "divisi_usaha" | "admin_accelera">)
+        .eq("is_active", true);
+
+      if (internalRecipients && internalRecipients.length > 0) {
+        const internalNotifRows = internalRecipients
+          .filter((r) => r.id !== user.id)
+          .map((r) => ({
+            recipient_id: r.id,
+            submission_id: submission.id,
+            title: notificationTitle || `Antrean Baru: ${finalSubmission.agenda_no}`,
+            message:
+              notificationMessage ||
+              `Pengajuan ${finalSubmission.agenda_no} masuk ke tahap ${STAGE_LABELS[nextStage]}.`,
+            channel: "IN_APP",
+            is_read: false,
+            sent_at: nowIso,
+          }));
+
+        if (internalNotifRows.length > 0) {
+          await adminSupabase.from("notifications").insert(internalNotifRows);
+        }
+      }
+    }
+
+    const vendorName = vendorRow?.name ?? "Mitra / Vendor";
+
+    // 2. Kirim Notifikasi Telegram ke Grup Internal pada setiap perpindahan tahap
+    const telegramMessage = buildTelegramStageTransitionMessage({
+      submission: finalSubmission,
+      vendorName,
+      fromStage: currentStage,
+      toStage: nextStage,
+      decisionLabel,
+      actorName: profile.full_name,
+      findings: nextFindings,
+    });
+    await sendTelegramMessage(telegramMessage);
+
+    // 3. Kirim Email Otomatis (Resend REST API via fetch) ke Mitra saat Pre-Check Pass atau Diminta Revisi
+    const mitraEmails = Array.from(
+      new Set(
+        [vendorRow?.email, submitterProfile?.email]
+          .map((e) => e?.trim())
+          .filter((e): e is string => Boolean(e))
+      )
+    );
+
+    const isRevisionRequestedAction =
+      action === "precheck_revision" ||
+      action === "physical_revision" ||
+      action === "coord_forward_mitra" ||
+      action === "pic_reject" ||
+      (action === "akuntansi_reject" && body.reject_target !== "return_pic");
+
+    if (mitraEmails.length > 0) {
+      if (action === "precheck_pass") {
+        const tpl = buildMitraEmailTemplate({
+          eventType: "precheck_pass",
+          submission: finalSubmission,
+          vendorName,
+          appUrl: request.nextUrl.origin,
+        });
+        await sendResendEmail({
+          to: mitraEmails,
+          subject: tpl.subject,
+          html: tpl.html,
+          text: tpl.text,
+        });
+      } else if (isRevisionRequestedAction) {
+        const tpl = buildMitraEmailTemplate({
+          eventType: "revision_requested",
+          submission: finalSubmission,
+          vendorName,
+          findings: nextFindings,
+          appUrl: request.nextUrl.origin,
+        });
+        await sendResendEmail({
+          to: mitraEmails,
+          subject: tpl.subject,
+          html: tpl.html,
+          text: tpl.text,
+        });
+      }
+    }
+
     return NextResponse.json({
       ok: true,
-      submission: updatedSubmission as BillingSubmission,
+      submission: finalSubmission,
       sla: {
-        is_paused: nextIsPaused,
-        is_internal_sla: !nextIsPaused,
-        actual_working_days: totalActualWorkingDays,
-        sla_status: nextSlaStatus,
+        is_paused: recalculatedSla.isPaused,
+        is_internal_sla: !recalculatedSla.isPaused,
+        actual_working_days: recalculatedSla.actualWorkingDays,
+        sla_status: recalculatedSla.slaStatus,
+        sla_target_days:
+          finalSubmission.sla_target_days || SLA_TOTAL_TARGET_DAYS,
       },
     });
   } catch (err) {

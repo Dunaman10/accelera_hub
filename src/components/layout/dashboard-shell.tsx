@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
+  CalendarDays,
   ClipboardCheck,
   FileCheck2,
   FilePlus2,
@@ -15,6 +16,7 @@ import {
   Menu,
   QrCode,
   ShieldCheck,
+  TableProperties,
   Users,
   X,
 } from "lucide-react";
@@ -22,6 +24,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { ROLE_LABELS } from "@/lib/constants";
 import type { Profile, UserRole, Vendor } from "@/types";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -52,6 +55,17 @@ function getNavigationForRole(role: UserRole): NavItem[] {
     case "admin_accelera":
       return [
         {
+          label: "Dashboard Penagihan",
+          href: "/dashboard",
+          icon: LayoutDashboard,
+          exact: true,
+        },
+        {
+          label: "Tabel Monitoring 23 Kolom",
+          href: "/monitoring",
+          icon: TableProperties,
+        },
+        {
           label: "Antrean Pemeriksaan",
           href: "/admin/queue",
           icon: ClipboardCheck,
@@ -60,6 +74,11 @@ function getNavigationForRole(role: UserRole): NavItem[] {
           label: "Master Vendor / Mitra",
           href: "/admin/vendors",
           icon: Building2,
+        },
+        {
+          label: "Master Hari Libur SLA",
+          href: "/admin/holidays",
+          icon: CalendarDays,
         },
         {
           label: "Manajemen User",
@@ -75,6 +94,17 @@ function getNavigationForRole(role: UserRole): NavItem[] {
           icon: ShieldCheck,
           exact: true,
         },
+        {
+          label: "Dashboard Penagihan",
+          href: "/dashboard",
+          icon: LayoutDashboard,
+          exact: true,
+        },
+        {
+          label: "Tabel Monitoring 23 Kolom",
+          href: "/monitoring",
+          icon: TableProperties,
+        },
       ];
     case "akuntansi":
       return [
@@ -89,6 +119,17 @@ function getNavigationForRole(role: UserRole): NavItem[] {
           href: "/spp",
           icon: QrCode,
         },
+        {
+          label: "Dashboard Penagihan",
+          href: "/dashboard",
+          icon: LayoutDashboard,
+          exact: true,
+        },
+        {
+          label: "Tabel Monitoring 23 Kolom",
+          href: "/monitoring",
+          icon: TableProperties,
+        },
       ];
     case "divisi_usaha":
       return [
@@ -98,15 +139,31 @@ function getNavigationForRole(role: UserRole): NavItem[] {
           icon: QrCode,
           exact: true,
         },
+        {
+          label: "Dashboard Penagihan",
+          href: "/dashboard",
+          icon: LayoutDashboard,
+          exact: true,
+        },
+        {
+          label: "Tabel Monitoring 23 Kolom",
+          href: "/monitoring",
+          icon: TableProperties,
+        },
       ];
     case "super_admin":
     default:
       return [
         {
-          label: "Executive Dashboard",
+          label: "Dashboard Penagihan",
           href: "/dashboard",
           icon: LayoutDashboard,
           exact: true,
+        },
+        {
+          label: "Tabel Monitoring 23 Kolom",
+          href: "/monitoring",
+          icon: TableProperties,
         },
         {
           label: "Antrean Admin Accelera",
@@ -117,6 +174,11 @@ function getNavigationForRole(role: UserRole): NavItem[] {
           label: "Master Vendor / Mitra",
           href: "/admin/vendors",
           icon: Building2,
+        },
+        {
+          label: "Master Hari Libur SLA",
+          href: "/admin/holidays",
+          icon: CalendarDays,
         },
         {
           label: "Manajemen User",
@@ -316,6 +378,7 @@ export function DashboardShell({
           </div>
 
           <div className="flex items-center gap-2">
+            <NotificationBell role={profile.role} />
             <Badge variant="secondary" className="hidden sm:inline-flex">
               {profile.full_name}
             </Badge>
@@ -422,7 +485,11 @@ export function DashboardShell({
               pathname.startsWith("/admin/submissions/") ||
                 pathname.startsWith("/pic/submissions/") ||
                 pathname.startsWith("/akuntansi/submissions/") ||
-                pathname.startsWith("/spp/submissions/")
+                pathname.startsWith("/spp/submissions/") ||
+                pathname === "/dashboard" ||
+                pathname.startsWith("/dashboard/") ||
+                pathname === "/monitoring" ||
+                pathname.startsWith("/monitoring/")
                 ? "max-w-[1600px]"
                 : "max-w-6xl"
             )}

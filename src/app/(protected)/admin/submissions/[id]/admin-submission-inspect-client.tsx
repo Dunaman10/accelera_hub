@@ -17,6 +17,7 @@ import {
   Info,
   Loader2,
   Lock,
+  MessageCircle,
   PackageCheck,
   PauseCircle,
   RefreshCcw,
@@ -44,6 +45,7 @@ import {
   STAGE_LABELS,
 } from "@/lib/constants";
 import { isStagePaused } from "@/lib/sla";
+import { buildWhatsappFollowupUrl } from "@/lib/notifications";
 import { DocumentViewer } from "@/components/documents/document-viewer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -298,14 +300,31 @@ export function AdminSubmissionInspectClient({
         </div>
 
         {vendor && (
-          <div className="flex items-center gap-2.5 rounded-xl border bg-muted/30 px-3.5 py-2 text-xs">
-            <Building2 className="size-4 text-primary" />
-            <div>
-              <p className="font-semibold">{vendor.name}</p>
-              <p className="text-[11px] text-muted-foreground">
-                NPWP: {vendor.npwp || "-"} • PIC: {vendor.pic_name || "-"}
-              </p>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-2.5 rounded-xl border bg-muted/30 px-3.5 py-2 text-xs">
+              <Building2 className="size-4 text-primary" />
+              <div>
+                <p className="font-semibold">{vendor.name}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  NPWP: {vendor.npwp || "-"} • PIC: {vendor.pic_name || "-"}
+                  {vendor.whatsapp_number ? ` (${vendor.whatsapp_number})` : ""}
+                </p>
+              </div>
             </div>
+
+            <a
+              href={buildWhatsappFollowupUrl({
+                submission,
+                vendor,
+                customFindings: findingNotes,
+              })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#25D366] px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-[#1ebe5d]"
+            >
+              <MessageCircle className="size-4" />
+              Hubungi Mitra via WA
+            </a>
           </div>
         )}
       </div>

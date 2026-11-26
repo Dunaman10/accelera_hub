@@ -317,8 +317,11 @@ export interface Database {
           to_stage: SubmissionStage;
           entered_at: string;
           exited_at: string | null;
+          ended_at?: string | null;
           is_paused: boolean;
+          is_internal_sla?: boolean;
           working_days_spent: number;
+          working_days_used?: number;
           action_by: string | null;
           decision: string | null;
           notes: string | null;
@@ -331,8 +334,11 @@ export interface Database {
           to_stage: SubmissionStage;
           entered_at?: string;
           exited_at?: string | null;
+          ended_at?: string | null;
           is_paused?: boolean;
+          is_internal_sla?: boolean;
           working_days_spent?: number;
+          working_days_used?: number;
           action_by?: string | null;
           decision?: string | null;
           notes?: string | null;
@@ -345,8 +351,11 @@ export interface Database {
           to_stage?: SubmissionStage;
           entered_at?: string;
           exited_at?: string | null;
+          ended_at?: string | null;
           is_paused?: boolean;
+          is_internal_sla?: boolean;
           working_days_spent?: number;
+          working_days_used?: number;
           action_by?: string | null;
           decision?: string | null;
           notes?: string | null;
@@ -425,6 +434,8 @@ export interface Database {
           id: string;
           holiday_date: string;
           description: string;
+          year?: number;
+          is_joint_leave?: boolean;
           is_cuti_bersama: boolean;
           created_at: string;
         };
@@ -432,6 +443,8 @@ export interface Database {
           id?: string;
           holiday_date: string;
           description: string;
+          year?: number;
+          is_joint_leave?: boolean;
           is_cuti_bersama?: boolean;
           created_at?: string;
         };
@@ -439,6 +452,8 @@ export interface Database {
           id?: string;
           holiday_date?: string;
           description?: string;
+          year?: number;
+          is_joint_leave?: boolean;
           is_cuti_bersama?: boolean;
           created_at?: string;
         };
@@ -522,6 +537,25 @@ export interface Database {
       is_internal_user: {
         Args: Record<PropertyKey, never>;
         Returns: boolean;
+      };
+      calculate_working_days: {
+        Args: {
+          start_ts: string;
+          end_ts: string;
+        };
+        Returns: number;
+      };
+      recalculate_submission_sla: {
+        Args: {
+          p_submission_id: string;
+        };
+        Returns: Array<{
+          submission_id: string;
+          actual_working_days: number;
+          sla_target_days: number;
+          sla_status: SlaStatus;
+          is_paused: boolean;
+        }>;
       };
     };
     Enums: {

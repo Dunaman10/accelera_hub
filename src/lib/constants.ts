@@ -111,7 +111,11 @@ export function isRouteAllowedForRole(pathname: string, role: UserRole): boolean
   }
 
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
-    return false;
+    return role !== "mitra";
+  }
+
+  if (pathname === "/monitoring" || pathname.startsWith("/monitoring/")) {
+    return role !== "mitra";
   }
 
   return true;

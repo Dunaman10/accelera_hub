@@ -98,11 +98,12 @@ export interface DriveFileStreamResult {
 }
 
 export interface DriveStorageQuota {
-  limitBytes: number;
+  limitBytes: number | null;
+  hasLimit: boolean;
   usageBytes: number;
   usageInDriveBytes: number;
   usageInTrashBytes: number;
-  remainingBytes: number;
+  remainingBytes: number | null;
   usagePercent: number;
   isWarning: boolean;
   isCritical: boolean;
@@ -553,7 +554,8 @@ export async function getDriveFileStream(
 }
 
 /**
- * Mengecek pemakaian kuota penyimpanan Google Drive (monitoring kuota akun 15 GB).
+ * Mengecek pemakaian kuota penyimpanan Google Drive secara dinamis dari `storageQuota.limit`
+ * (mendukung akun 5 GB / 15 GB / 100 GB / Workspace tanpa hardcode).
  */
 export async function getDriveStorageQuota(): Promise<DriveStorageQuota> {
   const accessToken = await getDriveAccessToken();
@@ -588,27 +590,32 @@ export async function getDriveStorageQuota(): Promise<DriveStorageQuota> {
     };
   };
 
-  const limitBytes = data.storageQuota?.limit
+  const rawLimit = data.storageQuota?.limit
     ? Number(data.storageQuota.limit)
-    : DEFAULT_GMAIL_QUOTA_BYTES;
+    : null;
+  const hasLimit =
+    rawLimit !== null && Number.isFinite(rawLimit) && rawLimit > 0;
+  const limitBytes = hasLimit ? rawLimit : null;
   const usageBytes = Number(data.storageQuota?.usage ?? "0");
   const usageInDriveBytes = Number(data.storageQuota?.usageInDrive ?? "0");
   const usageInTrashBytes = Number(data.storageQuota?.usageInDriveTrash ?? "0");
-  const remainingBytes = Math.max(0, limitBytes - usageBytes);
+  const remainingBytes =
+    limitBytes !== null ? Math.max(0, limitBytes - usageBytes) : null;
   const usagePercent =
-    limitBytes > 0
+    limitBytes !== null && limitBytes > 0
       ? Number(((usageBytes / limitBytes) * 100).toFixed(2))
       : 0;
 
   return {
     limitBytes,
+    hasLimit,
     usageBytes,
     usageInDriveBytes,
     usageInTrashBytes,
     remainingBytes,
     usagePercent,
-    isWarning: usagePercent >= 80,
-    isCritical: usagePercent >= 95,
+    isWarning: hasLimit && usagePercent >= 80,
+    isCritical: hasLimit && usagePercent >= 95,
     userEmail: data.user?.emailAddress ?? null,
   };
 }
