@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { connection } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, UserRole, Vendor } from "@/types";
 import { getHomeRouteForRole } from "@/lib/constants";
@@ -14,7 +13,6 @@ export interface AuthenticatedContext {
 }
 
 export async function getAuthenticatedContext(): Promise<AuthenticatedContext | null> {
-  await connection();
   try {
     const supabase = await createClient();
     const {
