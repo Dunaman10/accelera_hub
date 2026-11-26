@@ -32,6 +32,7 @@ import {
   STAGE_LABELS,
 } from "@/lib/constants";
 import { isStagePaused } from "@/lib/sla";
+import { DocumentViewer } from "@/components/documents/document-viewer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +42,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { MitraRevisionPanel } from "./mitra-revision-panel";
 
 interface StepConfig {
   stepNumber: number;
@@ -318,6 +320,12 @@ async function MitraSubmissionDetailContent({
     isStagePaused(submission.current_stage) ||
     submission.final_status === "Menunggu Mitra";
 
+  const isInRevisionStage =
+    submission.current_stage === "REVISION_SOFTCOPY" ||
+    submission.current_stage === "REVISION_HARDCOPY" ||
+    submission.current_stage === "REVISION_PIC" ||
+    submission.current_stage === "REVISION_ACCOUNTING";
+
   const bannerClasses = {
     info: "border-sky-500/30 bg-sky-500/10 text-sky-900 dark:text-sky-200",
     warning:
@@ -409,6 +417,14 @@ async function MitraSubmissionDetailContent({
           )}
         </div>
       </div>
+
+      {/* PANEL UPLOAD DOKUMEN REVISI & KIRIM ULANG PENGAJUAN (AKTIF SAAT TAHAP REVISI) */}
+      {isInRevisionStage && (
+        <MitraRevisionPanel
+          submission={submission}
+          documents={documents ?? []}
+        />
+      )}
 
       {/* VISUAL TIMELINE STEPPER 6 TAHAP */}
       <Card>
@@ -637,8 +653,12 @@ async function MitraSubmissionDetailContent({
                           <span className="truncate font-semibold">
                             {doc.file_name}
                           </span>
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge
+                            variant={doc.is_latest ? "default" : "outline"}
+                            className="text-[10px]"
+                          >
                             v{doc.version}
+                            {doc.is_latest ? " • Terbaru" : " • Arsip"}
                           </Badge>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
@@ -650,7 +670,7 @@ async function MitraSubmissionDetailContent({
 
                       <a
                         href={`/api/documents/${encodeURIComponent(
-                          doc.drive_file_id
+                          doc.id
                         )}/view`}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -666,6 +686,11 @@ async function MitraSubmissionDetailContent({
               )}
             </CardContent>
           </Card>
+
+          {/* INLINE PRIVATE DOCUMENT VIEWER (PDF & IMAGE ZOOM/ROTATE) */}
+          {documents && documents.length > 0 && (
+            <DocumentViewer documents={documents} />
+          )}
 
           {/* RIWAYAT TRANSISI TAHAP (STAGE LOGS) */}
           <Card>

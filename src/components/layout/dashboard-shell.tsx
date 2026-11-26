@@ -52,10 +52,9 @@ function getNavigationForRole(role: UserRole): NavItem[] {
     case "admin_accelera":
       return [
         {
-          label: "Meja Pemeriksaan",
-          href: "/admin",
+          label: "Antrean Pemeriksaan",
+          href: "/admin/queue",
           icon: ClipboardCheck,
-          exact: true,
         },
         {
           label: "Master Vendor / Mitra",
@@ -110,10 +109,9 @@ function getNavigationForRole(role: UserRole): NavItem[] {
           exact: true,
         },
         {
-          label: "Panel Admin Accelera",
-          href: "/admin",
+          label: "Antrean Admin Accelera",
+          href: "/admin/queue",
           icon: ClipboardCheck,
-          exact: true,
         },
         {
           label: "Master Vendor / Mitra",
@@ -418,7 +416,16 @@ export function DashboardShell({
 
         {/* PAGE CONTENT */}
         <main className="flex-1 p-4 pb-24 sm:p-6 lg:pb-8">
-          <div className="mx-auto w-full max-w-6xl">{children}</div>
+          <div
+            className={cn(
+              "mx-auto w-full",
+              pathname.startsWith("/admin/submissions/")
+                ? "max-w-[1600px]"
+                : "max-w-6xl"
+            )}
+          >
+            {children}
+          </div>
         </main>
 
         {/* MOBILE BOTTOM NAVIGATION */}
