@@ -15,6 +15,15 @@ service = "accelera-hub"
 [observability]
 enabled = true
 
+[vars]
+GOOGLE_CLIENT_ID = "1044968618048-4598nstq67jishe4no3ku2ath4dojgn1.apps.googleusercontent.com"
+GOOGLE_ROOT_FOLDER_ID = "12LeokpDcXkekxBw1HTWR3gjLzPcIqlN8"
+NEXT_PUBLIC_APP_URL = "https://accelera-hub.dunaman1004.workers.dev"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_JuCdG4zq57KK_t3FnH4aqw_Wb_ZGPBN"
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_JuCdG4zq57KK_t3FnH4aqw_Wb_ZGPBN"
+NEXT_PUBLIC_SUPABASE_URL = "https://afrxkzymzxomseiaytdm.supabase.co"
+TELEGRAM_CHAT_ID = "-1001234567890"
+
 # Jadwal Cron Produksi (UTC):
 # 1) "0 0 */3 * *"  -> Tiap 3 hari (/api/cron/keep-alive anti-pause Supabase Free Tier)
 # 2) "30 1 * * 1-5" -> Senin-Jumat pukul 08.30 WIB / 01.30 UTC (/api/cron/sla-reminder)
